@@ -320,9 +320,10 @@ async function danBaiFill(data, map, opts) {
   try { out.body = await fillBody(data.html); } catch (e) { out.body = false; out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
   // Ảnh trong bài: thay từng dấu [[ẢNH n]] bằng ảnh đã tải, đúng vị trí dấu.
-  // Cách 1: dán tệp ảnh vào vị trí dấu (trình soạn thảo tự tải ảnh lên CMS, như khi bạn dán ảnh bằng Ctrl+V).
-  // Cách 2: dùng nút chèn ảnh của thanh công cụ và chọn tệp trong hộp đó.
-  // Chỉ tính là xong khi ảnh có địa chỉ thật trên CMS (không phải data: hay blob:).
+  // Cách chính (đúng như thao tác trong video): nút ảnh trên thanh công cụ → hộp «Thêm/Sửa hình ảnh» →
+  // chọn tệp (CMS tải lên, ô Image Url có địa chỉ) → bấm Lưu (dấu tích góc trên bên phải của hộp) → ảnh được chèn.
+  // Cách dự phòng: dán tệp ảnh vào vị trí dấu.
+  // Chỉ tính là xong khi ảnh trong bài có địa chỉ thật trên CMS (không phải data: hay blob:).
   async function uploadBodyImages(list) {
     const res = { ok: 0, fail: [] };
     const f = fieldEl('body');
@@ -330,16 +331,19 @@ async function danBaiFill(data, map, opts) {
     const btn = f && [...f.querySelectorAll('button, [role=button]')].filter(visible)
       .find((b) => /\bimage\b|hinh anh|chen anh/.test(norm(b.getAttribute('aria-label') || b.title || '')));
     const isRemote = (src) => /^https?:\/\//i.test(src || '');
-    const dlgFile = () => [...document.querySelectorAll('input[type=file]')].reverse().find((i) => i.closest('.tox-dialog, [role=dialog], .v-dialog, .v-card')) || null;
-    const closeDialog = () => {
-      const c = [...document.querySelectorAll('.tox-dialog button')].filter(visible).find((b) => /^(huy|cancel|dong|close)$/.test(norm(text(b))));
-      if (c) c.click();
-    };
     const makeFile = (im) => {
       const bin = atob(im.b64);
       const u8 = new Uint8Array(bin.length);
       for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
       return new File([u8], im.name, { type: im.mime || 'image/jpeg' });
+    };
+    const findImgDialog = () => [...document.querySelectorAll('div, section, aside, [role=dialog]')]
+      .filter((e) => visible(e) && /sua hinh anh|chen hinh anh|them hinh anh/.test(norm(text(e)).slice(0, 80))
+        && e.querySelector('input[type=file]') && e.querySelector('[data-icon="check"]'))
+      .sort((a, b) => area(a) - area(b))[0] || null;
+    const closeDlg = (dlg) => {
+      const x = dlg && [...dlg.querySelectorAll('[data-icon="close"]')].map(T.buttonOf).filter(visible)[0];
+      if (x) x.click();
     };
     for (const im of list) {
       const marker = `[[ẢNH ${im.n}]]`;
@@ -357,54 +361,59 @@ async function danBaiFill(data, map, opts) {
         rng.setStart(hit.node, hit.i); rng.setEnd(hit.node, hit.i + marker.length);
         ed.selection.setRng(rng); ed.focus();
       };
-      // Sau khi chèn: nếu ảnh chưa lên CMS (data:/blob:) thì trả lại dấu tại chỗ đó; nếu xong thì xóa dấu còn sót.
       // Sửa DOM trực tiếp không được trình soạn thảo ghi nhận; phải báo để nội dung lưu đúng.
       const notify = () => { try { ed.fire('input'); ed.fire('change'); ed.save(); } catch (e) { /* bỏ qua */ } };
+      const remoteNew = (srcSet) => [...body.querySelectorAll('img')].find((i) => !srcSet.has(i.getAttribute('src')) && isRemote(i.getAttribute('src')));
       const restoreMarkerFrom = (srcSet) => {
         [...body.querySelectorAll('img')].filter((i) => !srcSet.has(i.getAttribute('src')) && !isRemote(i.getAttribute('src')))
           .forEach((i) => i.replaceWith(doc.createTextNode(marker)));
         notify();
       };
-      const remoteNew = (srcSet) => [...body.querySelectorAll('img')].find((i) => !srcSet.has(i.getAttribute('src')) && isRemote(i.getAttribute('src')));
       const cleanMarker = () => { const h = findMarker(); if (h && h.node.nodeValue.includes(marker)) { h.node.nodeValue = h.node.nodeValue.replace(marker, ''); notify(); } };
+      const snapshot = () => new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
 
-      // Cách 1: dán ảnh
       let hit = findMarker();
       if (!hit) { res.fail.push(`ảnh ${im.n} (không thấy dấu ${marker} trong bài)`); continue; }
+
+      // Cách chính: hộp Thêm/Sửa hình ảnh
+      if (btn) {
+        selectMarker(hit);
+        const before = snapshot();
+        btn.click();
+        const dlg = await waitFor(findImgDialog, 4000);
+        if (dlg) {
+          const input = dlg.querySelector('input[type=file]');
+          const dt = new DataTransfer();
+          dt.items.add(makeFile(im));
+          input.files = dt.files;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          // Chờ CMS tải xong: ô Image Url có địa chỉ.
+          await waitFor(() => [...dlg.querySelectorAll('input')].some((i) => isRemote(i.value)), 40000, 400);
+          await sleep(400);
+          const save = [...dlg.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop();
+          if (save) save.click();
+          if (await waitFor(() => remoteNew(before), 15000, 300)) { cleanMarker(); res.ok++; continue; }
+          restoreMarkerFrom(before);
+          closeDlg(dlg);
+          res.fail.push(`ảnh ${im.n} (CMS chưa nhận ảnh vào bài)`);
+          continue;
+        }
+      }
+
+      // Cách dự phòng: dán tệp ảnh vào vị trí dấu
+      hit = findMarker();
+      if (!hit) { res.fail.push(`ảnh ${im.n} (mất dấu ${marker})`); continue; }
       selectMarker(hit);
-      const before = new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
+      const before2 = snapshot();
       try {
         const dt = new (ed.getWin().DataTransfer)();
         dt.items.add(makeFile(im));
         body.dispatchEvent(new (ed.getWin().ClipboardEvent)('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
       } catch (e) { /* không tạo được sự kiện dán */ }
-      const done1 = await waitFor(() => remoteNew(before), 20000, 300);
-      if (done1) { cleanMarker(); res.ok++; continue; }
-      restoreMarkerFrom(before);
-
-      // Cách 2: nút chèn ảnh + ô chọn tệp
-      hit = findMarker();
-      if (!hit || !btn) { res.fail.push(`ảnh ${im.n} (dán ảnh không lên CMS và không thấy nút chèn ảnh)`); continue; }
-      selectMarker(hit);
-      const before2 = new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
-      btn.click();
-      let input = await waitFor(dlgFile, 3000);
-      if (!input) {
-        const tab = [...document.querySelectorAll('.tox-dialog button, [role=tab]')].filter(visible).find((b) => /tai len|upload/.test(norm(text(b))));
-        if (tab) { tab.click(); input = await waitFor(dlgFile, 3000); }
-      }
-      if (!input) { res.fail.push(`ảnh ${im.n} (không thấy ô chọn tệp trong hộp chèn ảnh)`); closeDialog(); continue; }
-      const dt2 = new DataTransfer();
-      dt2.items.add(makeFile(im));
-      input.files = dt2.files;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      await sleep(2500);
-      const primary = [...document.querySelectorAll('.tox-dialog__footer button, .tox-dialog button.tox-button--primary')].filter(visible).pop();
-      if (primary) primary.click();
-      const done2 = await waitFor(() => remoteNew(before2), 20000, 300);
-      if (!done2) { restoreMarkerFrom(before2); closeDialog(); res.fail.push(`ảnh ${im.n} (chưa lên được CMS)`); continue; }
-      cleanMarker(); res.ok++;
+      if (await waitFor(() => remoteNew(before2), 20000, 300)) { cleanMarker(); res.ok++; continue; }
+      restoreMarkerFrom(before2);
+      res.fail.push(btn ? `ảnh ${im.n} (không mở được hộp chèn ảnh và dán cũng không lên CMS)` : `ảnh ${im.n} (không thấy nút chèn ảnh và dán không lên CMS)`);
     }
     return res;
   }

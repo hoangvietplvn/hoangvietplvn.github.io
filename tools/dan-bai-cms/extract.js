@@ -260,19 +260,28 @@ function docFromHtml(html, url) {
     }
   }
 
+  // Ảnh đại diện khi không có dòng «Ảnh đại diện:»: ảnh đầu tiên nằm sau tiêu đề/sapo; không có thì ảnh đầu tiên của tài liệu.
+  const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
+  if (!coverUrl) {
+    const titleIdx = titleEl ? items.indexOf(titleEl) : -1;
+    const sapoIdx = sapoEl ? items.indexOf(sapoEl) : titleIdx;
+    const imgOf = (el) => (el.tagName === 'IMG' ? el : el.querySelector('img'));
+    const after = items.slice(Math.max(sapoIdx, titleIdx, -1) + 1).map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
+    const any = items.map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
+    const chosen = after || any;
+    if (chosen) chosen.setAttribute('data-dbcover', '1');
+  }
+
   const holder = doc.createElement('div');
   if (startRest) { const p = doc.createElement('p'); p.textContent = startRest; holder.appendChild(p); }
   bodyItems.forEach((el) => holder.appendChild(el.cloneNode(true)));
   const text = clean(holder.textContent);
   if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
 
-  // Ảnh đại diện: dòng «Ảnh đại diện:» nếu có; không có thì lấy ảnh đầu tiên của tài liệu (và bỏ khỏi nội dung).
-  const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
   let cover = coverUrl;
-  if (!cover) {
-    const first = holder.querySelector('img');
-    if (first && /^https?:\/\//i.test(first.getAttribute('src') || '')) { cover = first.getAttribute('src'); first.remove(); }
-  }
+  const coverImg = holder.querySelector('img[data-dbcover]');
+  if (!cover && coverImg) { cover = coverImg.getAttribute('src') || ''; coverImg.remove(); }
+
   const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   return {
     url, title: clean(found.title), sapo: clean(sapo), html: sanitizeHtml(holder.innerHTML),
