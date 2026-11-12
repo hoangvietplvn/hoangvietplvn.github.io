@@ -103,6 +103,11 @@ let posts = fs.readdirSync(postsDir).filter((f) => /\.(md|html)$/.test(f)).map((
 const categories = [...new Set(posts.map((p) => p.category))];
 const catUrl = (c) => `chuyen-muc/${slugify(c)}/`;
 
+/* Mã phiên bản gắn vào đường dẫn CSS/JS để trình duyệt không dùng bản cũ đã lưu */
+const VER = require('crypto').createHash('md5')
+  .update(fs.readFileSync(path.join(ROOT, 'src/styles.css'))).update(fs.readFileSync(path.join(ROOT, 'src/main.js')))
+  .digest('hex').slice(0, 10);
+
 /* ---------- khung trang ---------- */
 function shell({ title, description, root, body, cls = '', image = '', canonical = '' }) {
   const full = title ? `${title} — ${cfg.title}` : `${cfg.title} — ${cfg.tagline}`;
@@ -125,7 +130,7 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,800;0,900;1,400;1,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="${root}assets/styles.css">
+<link rel="stylesheet" href="${root}assets/styles.css?v=${VER}">
 </head>
 <body class="${cls}">
 <div class="progress" aria-hidden="true"></div>
@@ -151,7 +156,7 @@ ${body}
     <p class="footnav"><a href="${root}luu-tru/">Lưu trữ</a> · <a href="${root}gioi-thieu/">Giới thiệu</a> · <a href="${root}feed.xml">RSS</a></p>
   </div>
 </footer>
-<script src="${root}assets/main.js" defer></script>
+<script src="${root}assets/main.js?v=${VER}" defer></script>
 </body>
 </html>`;
 }
