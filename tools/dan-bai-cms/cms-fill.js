@@ -22,22 +22,45 @@ function danBaiTools() {
   T.text = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
 
   // Nhãn của một ô: đoạn chữ ngắn đứng ngay trước ô đó (đi ngược lên tối đa 7 cấp).
+  const shown = (el) => { const cs = el.ownerDocument.defaultView.getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden'; };
+  const clean = (t) => t.replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '');
+
+  // Nhãn của một ô. Directus: mỗi ô nằm trong .field, nhãn ở .field-label.
+  // Form khác: lấy đoạn chữ ngắn đứng ngay trước ô (đi ngược lên tối đa 7 cấp).
   T.labelOf = (el) => {
     const doc = el.ownerDocument;
+    const field = el.closest('.field');
+    if (field) { const fl = field.querySelector('.field-label'); if (fl && !fl.contains(el) && T.text(fl)) return clean(T.text(fl)); }
     if (el.id) { const l = doc.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l && T.text(l)) return T.text(l); }
     const wrap = el.closest('label'); if (wrap && T.text(wrap)) return T.text(wrap);
     let node = el;
     for (let depth = 0; depth < 7 && node && node !== doc.body; depth++, node = node.parentElement) {
       for (let sib = node.previousElementSibling; sib; sib = sib.previousElementSibling) {
-        if (!T.visible(sib)) continue;
+        if (!shown(sib)) continue;
         if (sib.matches('input, textarea, select, iframe') || sib.querySelector('input, textarea, select, iframe, [contenteditable="true"]')) return '';
         const t = T.text(sib);
-        if (t && t.length <= 80) return t.replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '');
+        if (t && t.length <= 80) return clean(t);
         if (t) return '';
       }
     }
     return '';
   };
+
+  // Tìm khối .field theo nhãn (dùng cho ô không phải input: ngày đăng, danh mục, ảnh).
+  T.fieldEl = (kind) => {
+    let best = null; let bestScore = 0;
+    for (const f of document.querySelectorAll('.field')) {
+      const fl = f.querySelector('.field-label');
+      if (!fl || fl.closest('.field') !== f || !shown(f)) continue;
+      const lab = T.norm(clean(T.text(fl)));
+      if (!lab || T.NOT[kind].test(lab)) continue;
+      const i = lab.search(T.PAT[kind]);
+      const sc = i === 0 ? 4 : i > 0 ? 3 : 0;
+      if (sc > bestScore) { best = f; bestScore = sc; }
+    }
+    return best;
+  };
+  T.inField = (kind, selector) => { const f = T.fieldEl(kind); return f ? [...f.querySelectorAll(selector)].find((x) => !x.closest('.field-label') && T.visible(x)) || null : null; };
 
   T.PAT = {
     title: /tieu ?de|title|headline|ten bai/,
@@ -228,9 +251,10 @@ async function danBaiFill(data, map, opts) {
 
   // ---- 3. Ngày đăng = bây giờ ----
   async function setDateNow() {
-    const el = resolve(map.date) || T.findField('date', 'input', true);
+    const el = resolve(map.date) || T.findField('date', 'input', true) || T.inField('date', '.interface .v-list-item, .interface button, .interface input');
     if (!el) return false;
-    if (el.value) return true;
+    const hasValue = () => !!el.value || /\d{1,2}[/:.-]\d{1,2}/.test(text(el));
+    if (hasValue()) return true;
     if (el.type === 'datetime-local' || el.type === 'date') {
       const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
       setValue(el, el.type === 'date' ? d.slice(0, 10) : d.slice(0, 16));
@@ -246,14 +270,19 @@ async function danBaiFill(data, map, opts) {
     }
     if (!ok) {
       const btn = [...document.querySelectorAll('button, a')].filter(visible)
-        .find((b) => /to-now|set-now|today-btn/i.test(b.className) || /^(set to now|dat ve bay gio|dat thanh bay gio|bay gio|hien tai)/.test(norm(text(b))));
+        .find((b) => /to-now|set-now|today-btn/i.test(String(b.className)) || /^(set to now|dat ve bay gio|dat thanh bay gio|bay gio|hien tai)/.test(norm(text(b))));
       if (btn) { btn.click(); ok = true; }
     }
     await sleep(300);
     pressEscape();
     await sleep(200);
+    if (cal && visible(cal)) {
+      const outside = document.querySelector('.v-drawer .header-bar .title, .v-drawer h1, h1') || document.body;
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) outside.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+      await sleep(200);
+    }
     if (cal && visible(cal)) { el.click(); await sleep(200); }
-    return ok || !!el.value;
+    return ok || hasValue();
   }
   if (opts.setDate) { try { out.date = await setDateNow(); } catch (e) { out.date = false; } }
 
@@ -285,6 +314,7 @@ async function danBaiFill(data, map, opts) {
   async function setCategory(name) {
     const want = norm(name);
     const el = resolve(map.category) || T.findField('category', 'input', true) ||
+      T.inField('category', '.interface .v-list-item, .interface .v-select, .interface [role=combobox], .interface select, .interface button') ||
       [...document.querySelectorAll('.v-select, [role=combobox], select')].filter(visible).find((x) => T.score(x, 'category') >= 3);
     if (!el) return false;
     if (el.tagName === 'SELECT') {
@@ -293,10 +323,10 @@ async function danBaiFill(data, map, opts) {
       el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles: true }));
       return true;
     }
-    if (norm(el.value || '') === want) return true;
+    if (norm(el.value || '') === want || norm(text(el)) === want) return true;
     el.click();
     const sel = '.v-list-item, [role=option], [role=menuitem], li, tr, .table-row';
-    const pick = await waitFor(() => [...document.querySelectorAll(sel)].filter(visible).find((x) => {
+    const pick = await waitFor(() => [...document.querySelectorAll(sel)].filter((x) => visible(x) && x !== el && !x.contains(el) && !x.closest('.module-nav, .module-bar, nav, thead')).find((x) => {
       const t = norm(text(x));
       return t === want || [...x.children].some((c) => norm(text(c)) === want);
     }), 5000);
@@ -333,6 +363,14 @@ function danBaiDiag() {
     if (!T.visible(el) || el.closest('.tox')) continue;
     lines.push([el.tagName.toLowerCase() + (el.type ? '[' + el.type + ']' : ''), el.readOnly ? 'readonly' : '', 'nhãn: ' + T.labelOf(el),
       'ph: ' + (el.getAttribute('placeholder') || ''), chain(el)].filter(Boolean).join(' | '));
+  }
+  lines.push('--- Các khối .field ---');
+  for (const f of document.querySelectorAll('.field')) {
+    const fl = f.querySelector('.field-label');
+    if (!fl || fl.closest('.field') !== f) continue;
+    const itf = f.querySelector('.interface');
+    const kids = itf ? [...itf.querySelectorAll('input, textarea, button, iframe, .v-list-item')].slice(0, 5).map((k) => k.tagName.toLowerCase() + (cls(k) ? '.' + cls(k) : '')).join(', ') : '';
+    lines.push(T.text(fl) + ' | ' + cls(f) + ' | ' + kids);
   }
   lines.push('--- Nút có biểu tượng ---');
   const icons = new Map();
