@@ -262,16 +262,16 @@ function docFromHtml(html, url) {
     }
   }
 
-  // Ảnh đại diện khi không có dòng «Ảnh đại diện:»: ảnh đầu tiên nằm sau tiêu đề/sapo; không có thì ảnh đầu tiên của tài liệu.
+  // Ảnh đại diện (khi không có dòng «Ảnh đại diện:»): ảnh đầu tiên nằm ngay sau sapo
+  // (không có sapo thì sau tiêu đề). Ảnh này vừa là ảnh đại diện, vừa là ảnh đầu tiên của bài nên vẫn giữ trong nội dung.
   const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
-  if (!coverUrl) {
-    // Ảnh đầu tiên sau tiêu đề (thường nằm ngay dưới tiêu đề, trước sapo).
-    const titleIdx = titleEl ? items.indexOf(titleEl) : -1;
+  let cover = coverUrl;
+  if (!cover) {
+    const metaIdx = [...used, titleEl ? items.indexOf(titleEl) : -1, sapoEl ? items.indexOf(sapoEl) : -1];
+    const anchor = Math.max(-1, ...metaIdx);
     const imgOf = (el) => (el.tagName === 'IMG' ? el : el.querySelector('img'));
-    const after = items.slice(titleIdx + 1).map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
-    const any = items.map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
-    const chosen = after || any;
-    if (chosen) chosen.setAttribute('data-dbcover', '1');
+    const hit = items.slice(anchor + 1).map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
+    if (hit) cover = hit.getAttribute('src');
   }
 
   const holder = doc.createElement('div');
@@ -279,10 +279,6 @@ function docFromHtml(html, url) {
   bodyItems.forEach((el) => holder.appendChild(el.cloneNode(true)));
   const text = clean(holder.textContent);
   if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
-
-  let cover = coverUrl;
-  const coverImg = holder.querySelector('img[data-dbcover]');
-  if (!cover && coverImg) { cover = coverImg.getAttribute('src') || ''; coverImg.remove(); }
 
   const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   return {

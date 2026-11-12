@@ -193,13 +193,28 @@ async function shrinkImage(blob) {
 }
 
 // Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) và chuẩn bị để đưa vào CMS.
+// Ảnh trên Drive: thử lần lượt các địa chỉ tải ảnh (bản thu nhỏ 2000px trước), dùng phiên đăng nhập của trình duyệt.
+function driveIdOf(src) {
+  const m = /drive\.google\.com\/(?:uc\?(?:[^#]*&)?id=|file\/d\/|thumbnail\?(?:[^#]*&)?id=)([\w-]+)/.exec(src || '');
+  return m ? m[1] : '';
+}
 async function fetchImageFile(src) {
-  const res = await fetch(src, { credentials: /drive\.google\.com/.test(src) ? 'include' : 'omit', redirect: 'follow' });
-  if (!res.ok) throw new Error('máy chủ trả về ' + res.status);
-  let blob = await res.blob();
-  if (!/^image\//.test(blob.type)) throw new Error('không phải ảnh (có thể cần quyền xem trên Drive)');
-  if (blob.size > MAX_IMG_BYTES || !/image\/(jpeg|png)/.test(blob.type)) blob = await shrinkImage(blob);
-  return { b64: await blobToB64(blob), mime: blob.type, ext: (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
+  const id = driveIdOf(src);
+  const urls = id
+    ? [`https://drive.google.com/thumbnail?id=${id}&sz=w2000`, `https://drive.google.com/uc?export=view&id=${id}`, src]
+    : [src];
+  const reasons = [];
+  for (const u of urls) {
+    try {
+      const res = await fetch(u, { credentials: id ? 'include' : 'omit', redirect: 'follow' });
+      if (!res.ok) { reasons.push('máy chủ trả về ' + res.status); continue; }
+      let blob = await res.blob();
+      if (!/^image\//.test(blob.type)) { reasons.push('không phải ảnh (cần quyền xem trên Drive)'); continue; }
+      if (blob.size > MAX_IMG_BYTES || !/image\/(jpeg|png)/.test(blob.type)) blob = await shrinkImage(blob);
+      return { b64: await blobToB64(blob), mime: blob.type, ext: (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
+    } catch (e) { reasons.push(e.message); }
+  }
+  throw new Error(reasons.length ? reasons[0] : 'không tải được');
 }
 
 // Thay mỗi ảnh trong bài bằng dấu [[ẢNH n]] để CMS chèn ảnh đúng vị trí đó sau.
@@ -221,7 +236,7 @@ async function fetchDocImages(items) {
   for (const it of items) {
     try {
       const b = await fetchImageFile(it.src);
-      ok.push({ n: it.n, b64: b.b64, mime: b.mime, name: `anh-trong-bai-${it.n}.${b.ext}` });
+      ok.push({ n: it.n, src: it.src, b64: b.b64, mime: b.mime, name: `anh-trong-bai-${it.n}.${b.ext}` });
     } catch (e) { fail.push(`ảnh ${it.n} (${e.message})`); }
   }
   return { ok, fail };
@@ -303,10 +318,6 @@ $('fill-btn').addEventListener('click', async () => {
   setStatus(st, 'Đang điền vào CMS…');
   try {
     let coverNote = '';
-    if (settings.importCover && data.cover) {
-      try { data.coverFile = await fetchCover(data.cover); }
-      catch (e) { coverNote = ' Không tải được ảnh đại diện từ bài gốc (' + e.message + '); hãy tải ảnh rồi đẩy lên tay.'; }
-    }
     let imageNote = '';
     if (article && article.fromDoc) {
       const prep = prepareDocImages(data.html);
@@ -317,6 +328,20 @@ $('fill-btn').addEventListener('click', async () => {
         data.bodyImages = got.ok;
         data.imageFails = got.fail;
         if (got.fail.length) imageNote = ' Không tải được: ' + got.fail.join('; ') + '. Dấu [[ẢNH n]] còn trong bài, hãy chèn ảnh đó tay rồi xóa dấu.';
+      }
+    }
+    // Ảnh đại diện: dùng lại đúng ảnh đã tải cho bài (ảnh đó vừa là ảnh đại diện vừa là ảnh đầu tiên của bài).
+    if (settings.importCover) {
+      if (!data.cover) {
+        if (article && article.fromDoc) coverNote = ' Ảnh đại diện: không có ảnh nào ngay sau sapo nên chưa chọn được.';
+      } else {
+        const same = (data.bodyImages || []).find((x) => x.src === data.cover);
+        if (same) {
+          data.coverFile = { b64: same.b64, mime: same.mime, name: 'anh-dai-dien.' + (same.mime.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
+        } else {
+          try { data.coverFile = await fetchCover(data.cover); }
+          catch (e) { coverNote = ' Ảnh đại diện chưa đẩy lên được (' + e.message + ').'; }
+        }
       }
     }
     const { tab, opened } = await getCmsTab();
