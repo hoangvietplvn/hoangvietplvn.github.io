@@ -4,7 +4,7 @@ date: 2026-11-12
 category: ky-niem
 excerpt: Cuối tuần mưa giăng rả rích, hơi lạnh điều hòa len lỏi bỗng gọi về ký ức của những ngày đầu chập chững bước chân vào tòa soạn.
 author: ''
-cover: https://scontent.fhan18-1.fna.fbcdn.net/v/t39.30808-6/783508012_27840467182288693_1997535861312022838_n.jpg?stp=dst-jpg_tt6&cstp=mx2048x1230&ctp=s2048x1230&_nc_cat=111&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=127cfc&_nc_eui2=AeF2WMv6NB6c4_Iy1ZpUrw28qaLydPq49o6povJ0-rj2jny44JQDAfVRLNDy7suBhw-959WSXzuuoP6YPV0OUhBS&_nc_ohc=BDD5ysunzUwQ7kNvwGQcT6I&_nc_oc=AdrhvI22bpUbdUAoHVDLm5wn_qY-zDU2Qtn5X4mmMIoXrSpErcigwt9sIpDs9gfF2oE&_nc_zt=23&_nc_ht=scontent.fhan18-1.fna&_nc_gid=lJGjahqr9XBh6nq10pV8Ng&_nc_ss=7a2a8&oh=00_AQTYmOHiLs6cq7TeLs6rME8o9Bi4vGm3Xm_F8JaKf9fZfQ&oe=6AFB6622
+cover: /images/uploads/783508012_27840467182288693_1997535861312022838_n.jpg
 cover_caption: ''
 layout: longform
 draft: false
