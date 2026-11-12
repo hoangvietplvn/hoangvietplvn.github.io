@@ -12,23 +12,29 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
-import android.widget.TextView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebViewAssetLoader
 
+// Hai tab: «Kéo bài» (công cụ) và «CMS» (đăng nhập và điền bài). Cả hai giữ trạng thái khi chuyển tab.
 class MainActivity : ComponentActivity() {
 
     private lateinit var mainWeb: WebView
-    private lateinit var cmsBox: LinearLayout
-    private lateinit var barText: TextView
     private lateinit var cmsWeb: WebView
+    private lateinit var toolPane: FrameLayout
+    private lateinit var cmsPane: LinearLayout
+    private lateinit var barText: TextView
+    private lateinit var tabTool: Button
+    private lateinit var tabCms: Button
     private lateinit var native: NativeBridge
-    private var cmsVisible = false
+    private var onCmsTab = false
+    private var cmsStarted = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
+    // Bộ chọn tệp của hệ thống: ứng dụng chỉ nhận tệp người dùng chọn, không cần quyền truy cập thư viện.
     private val pickFiles = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         fileCallback?.onReceiveValue(uris.toTypedArray())
         fileCallback = null
@@ -39,33 +45,50 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val fill = ViewGroup.LayoutParams.MATCH_PARENT
+        val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
 
-        val root = FrameLayout(this)
         mainWeb = WebView(this)
         cmsWeb = WebView(this)
-        cmsBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
-        }
-        val back = Button(this).apply {
-            text = "← Ứng dụng"
-            setOnClickListener { hideCms() }
+        toolPane = FrameLayout(this).apply {
+            addView(mainWeb, FrameLayout.LayoutParams(fill, fill))
         }
         barText = TextView(this).apply {
             textSize = 13f
             maxLines = 3
-            setPadding(16, 8, 16, 8)
+            setPadding(24, 12, 24, 12)
         }
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        bar.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        bar.addView(barText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        cmsBox.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        cmsBox.addView(cmsWeb, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        root.addView(mainWeb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        root.addView(cmsBox, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        cmsPane = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            addView(barText, LinearLayout.LayoutParams(fill, wrap))
+            addView(cmsWeb, LinearLayout.LayoutParams(fill, 0, 1f))
+        }
+        val content = FrameLayout(this).apply {
+            addView(toolPane, FrameLayout.LayoutParams(fill, fill))
+            addView(cmsPane, FrameLayout.LayoutParams(fill, fill))
+        }
+        tabTool = Button(this).apply {
+            text = "Kéo bài"
+            setOnClickListener { selectTab(false) }
+        }
+        tabCms = Button(this).apply {
+            text = "CMS"
+            setOnClickListener { selectTab(true) }
+        }
+        val tabBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(tabTool, LinearLayout.LayoutParams(0, wrap, 1f))
+            addView(tabCms, LinearLayout.LayoutParams(0, wrap, 1f))
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(content, LinearLayout.LayoutParams(fill, 0, 1f))
+            addView(tabBar, LinearLayout.LayoutParams(fill, wrap))
+        }
         setContentView(root)
 
-        // Giao diện chính: tải từ thư mục assets/app, chạy dưới địa chỉ https nội bộ để có localStorage.
+        // Giao diện «Kéo bài»: tải từ assets/app, chạy dưới địa chỉ https nội bộ để có localStorage.
         val loader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -83,7 +106,7 @@ class MainActivity : ComponentActivity() {
         native = NativeBridge(this)
         mainWeb.addJavascriptInterface(native, "DanBaiNative")
 
-        // Màn hình CMS: đăng nhập và cookie được giữ lại giữa các lần mở.
+        // Tab «CMS»: đăng nhập và cookie được giữ lại giữa các lần mở.
         CookieManager.getInstance().setAcceptCookie(true)
         cmsWeb.settings.javaScriptEnabled = true
         cmsWeb.settings.domStorageEnabled = true
@@ -104,34 +127,53 @@ class MainActivity : ComponentActivity() {
         }
 
         mainWeb.loadUrl("https://appassets.androidplatform.net/assets/app/app.html")
+        selectTab(false)
     }
 
+    // Chọn tab. Tab CMS tải trang lần đầu khi được mở.
+    private fun selectTab(cms: Boolean) {
+        onCmsTab = cms
+        cmsPane.visibility = if (cms) View.VISIBLE else View.GONE
+        toolPane.visibility = if (cms) View.GONE else View.VISIBLE
+        tabCms.alpha = if (cms) 1f else 0.5f
+        tabTool.alpha = if (cms) 0.5f else 1f
+        if (cms && !cmsStarted) {
+            cmsStarted = true
+            cmsWeb.loadUrl(DEFAULT_CMS)
+        }
+    }
+
+    // Gọi từ công cụ: chuyển sang tab CMS (tải trang nếu chưa tải).
     fun showCms(url: String) {
         runOnUiThread {
-            if (cmsWeb.url == null) cmsWeb.loadUrl(url)
-            cmsBox.visibility = View.VISIBLE
-            cmsVisible = true
+            if (!cmsStarted) {
+                cmsStarted = true
+                cmsWeb.loadUrl(url)
+            }
+            selectTab(true)
         }
+    }
+
+    // Gọi từ công cụ: quay về tab Kéo bài.
+    fun hideCms() {
+        runOnUiThread { selectTab(false) }
     }
 
     fun setBar(text: String) {
         runOnUiThread { barText.text = text }
     }
 
-    fun hideCms() {
-        runOnUiThread {
-            cmsBox.visibility = View.GONE
-            cmsVisible = false
-        }
-    }
-
     @Deprecated("Dùng cho nút Quay lại của hệ thống")
     override fun onBackPressed() {
         when {
-            cmsVisible && cmsWeb.canGoBack() -> cmsWeb.goBack()
-            cmsVisible -> hideCms()
+            onCmsTab && cmsWeb.canGoBack() -> cmsWeb.goBack()
+            onCmsTab -> selectTab(false)
             mainWeb.canGoBack() -> mainWeb.goBack()
             else -> super.onBackPressed()
         }
+    }
+
+    companion object {
+        private const val DEFAULT_CMS = "https://cms.phapluat.gov.vn/admin/content-articles/review"
     }
 }
