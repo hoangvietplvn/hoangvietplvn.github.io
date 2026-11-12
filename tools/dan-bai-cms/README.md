@@ -31,7 +31,7 @@ Cập nhật bản mới: chép đè thư mục cũ rồi bấm nút tải lại
 - Tác giả: chỉ lấy từ dòng «Tác giả:». Không có dòng này thì ô Tác giả trên CMS được để trống (không giữ giá trị mặc định của CMS).
 - Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại.
 - Ảnh trong bài: tiện ích tải từng ảnh (ảnh chèn trong Doc, hoặc link Drive đứng riêng trong một đoạn). Ảnh lớn hơn 2,5MB được nén lại (JPEG) xuống khoảng 2–3MB, vì CMS giới hạn 10MB và CMS chậm khi tải ảnh nặng. Ảnh được tải lên lần lượt, mỗi ảnh chờ CMS xử lý xong mới làm ảnh tiếp theo. Mỗi ảnh được chèn vào đúng vị trí dấu `[[ẢNH n]]` theo đúng thao tác bạn làm: bấm nút ảnh trên thanh công cụ, chọn tệp trong hộp «Thêm/Sửa hình ảnh», chờ CMS tải xong, rồi bấm Lưu. Nếu không mở được hộp, tiện ích thử dán ảnh vào vị trí dấu. Ảnh nào vẫn không lên được thì dấu `[[ẢNH n]]` còn lại để bạn chèn tay rồi xóa dấu, và tiện ích không tự bấm lưu.
-- Ảnh đại diện lấy từ dòng «Ảnh đại diện» hoặc ảnh đầu tiên trong bài.
+- Ảnh đại diện lấy từ dòng «Ảnh đại diện:», hoặc ảnh đầu tiên nằm ngay dưới tiêu đề (trước sapo). Ảnh đó được bỏ khỏi nội dung để không bị lặp.
 
 ## Dùng hằng ngày
 
