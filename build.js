@@ -50,7 +50,7 @@ function copyDir(src, dest) {
 
 /* Đường dẫn bắt đầu bằng "/" trong bài viết được đổi thành tương đối,
    để site chạy đúng cả trên tên miền riêng lẫn thư mục con. */
-const relativize = (html, root) => html.replace(/(src|href|poster)="\/(?!\/)/g, `$1="${root}`);
+const relativize = (html, root) => html.replace(/(src|href|poster)="\/(?!\/)/g, `$1="${root}`).replace(/url\(("?)\/(?!\/)/g, `url($1${root}`);
 
 /* ---------- ảnh bìa tự sinh (khi bài không có ảnh) ---------- */
 const PALETTES = [
@@ -150,7 +150,7 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 <link rel="icon" href="${root}assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,800;0,900;1,400;1,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="${root}assets/styles.css?v=${VER}">
 </head>
 <body class="${cls}">
