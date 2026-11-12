@@ -15,7 +15,11 @@ const FIELDS = [
 let settings = { cmsUrl2: DEFAULT_CMS, map2: {}, autoSubmit: false, setDate: true, importCover: true, credit: false, category: 'Tin hoạt động' };
 let article = null;
 
-function setStatus(el, text, kind) { el.textContent = text; el.className = 'status' + (kind ? ' ' + kind : ''); }
+function setStatus(el, text, kind) {
+  el.textContent = text; el.className = 'status' + (kind ? ' ' + kind : '');
+  // Bản Android: đưa thông báo điền CMS lên thanh trên màn hình CMS (để thấy khi đang ở CMS).
+  if (el.id === 'fill-status' && window.__barHook) window.__barHook(text);
+}
 
 // ---------- Thiết lập ----------
 async function loadSettings() {
@@ -345,6 +349,13 @@ $('fill-btn').addEventListener('click', async () => {
       }
     }
     const { tab, opened } = await getCmsTab();
+    // Đang ở trang đăng nhập CMS thì chưa điền được: báo và chờ người dùng đăng nhập rồi bấm lại.
+    const [loginCheck] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: () => !!document.querySelector('input[type=password]') });
+    if (loginCheck && loginCheck.result) {
+      setStatus(st, 'CMS đang ở trang đăng nhập. Hãy đăng nhập trong màn hình CMS, khi vào được trang quản lý bài viết thì bấm «Điền vào CMS» lại.', 'err');
+      await focusTab(tab);
+      return;
+    }
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['cms-fill.js'] });
     const [res] = await chrome.scripting.executeScript({
       target: { tabId: tab.id }, world: 'MAIN',

@@ -12,6 +12,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.TextView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var mainWeb: WebView
     private lateinit var cmsBox: LinearLayout
+    private lateinit var barText: TextView
     private lateinit var cmsWeb: WebView
     private lateinit var native: NativeBridge
     private var cmsVisible = false
@@ -46,10 +48,18 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         val back = Button(this).apply {
-            text = "← Quay lại ứng dụng"
+            text = "← Ứng dụng"
             setOnClickListener { hideCms() }
         }
-        cmsBox.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        barText = TextView(this).apply {
+            textSize = 13f
+            maxLines = 3
+            setPadding(16, 8, 16, 8)
+        }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        bar.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        bar.addView(barText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        cmsBox.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         cmsBox.addView(cmsWeb, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(mainWeb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root.addView(cmsBox, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -102,6 +112,10 @@ class MainActivity : ComponentActivity() {
             cmsBox.visibility = View.VISIBLE
             cmsVisible = true
         }
+    }
+
+    fun setBar(text: String) {
+        runOnUiThread { barText.text = text }
     }
 
     fun hideCms() {

@@ -6,6 +6,8 @@
   const N = window.DanBaiNative;
   if (!N) return;
   document.documentElement.classList.add('android');
+  // Thông báo điền CMS hiện trên thanh của màn hình CMS.
+  window.__barHook = (t) => { try { N.setBar(String(t || '')); } catch (e) { /* bỏ qua */ } };
 
   // ---- Gọi cầu nối gốc và nhận kết quả ----
   const pending = new Map();
@@ -85,8 +87,15 @@
   };
 
   // ---- Chèn mã vào trang CMS ----
+  // Trang CMS phải hiện (có kích thước) thì mới tìm được nút và ô; hiện trước khi chèn mã, chờ bố cục xong.
+  let cmsShown = false;
+  const ensureCmsShown = async () => {
+    await call('showCms', cmsUrl || cmsSetting());
+    if (!cmsShown) { cmsShown = true; await new Promise((r) => setTimeout(r, 600)); }
+  };
   const scripting = {
     executeScript: async (opts) => {
+      await ensureCmsShown();
       if (opts.files) {
         for (const f of opts.files) await call('cmsEvalAsset', f);
         return [{ result: null }];

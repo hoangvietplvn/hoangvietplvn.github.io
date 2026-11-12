@@ -5,3 +5,5 @@
 - Build: workflow `.github/workflows/android-apk.yml` (GitHub Actions) tạo file APK debug và đưa lên mục Artifacts `dan-bai-cms-apk`.
 - Thư mục `app/src/main/assets/app` được sao chép tự động từ `tools/dan-bai-cms` khi build (không commit).
 - Cài trên điện thoại: tải APK, mở file, cho phép «Cài đặt ứng dụng không xác định» khi Samsung hỏi.
+
+Lưu ý khi dùng: nếu CMS đang ở trang đăng nhập, ứng dụng báo và không điền. Đăng nhập CMS rồi bấm «Điền vào CMS» lại. Thông báo điền hiện trên thanh phía trên màn hình CMS; nút «← Ứng dụng» quay về màn hình chính.

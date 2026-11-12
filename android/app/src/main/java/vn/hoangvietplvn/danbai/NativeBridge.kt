@@ -71,6 +71,12 @@ class NativeBridge(private val activity: MainActivity) {
         activity.hideCms()
     }
 
+    // Hiện thông báo điền CMS trên thanh của màn hình CMS.
+    @JavascriptInterface
+    fun setBar(text: String) {
+        activity.setBar(text)
+    }
+
     // Chạy một hàm (đã chuyển thành chuỗi mã) trong trang CMS, với các đối số dạng JSON.
     @JavascriptInterface
     fun cmsRun(callbackId: String, code: String, argsJson: String) {
