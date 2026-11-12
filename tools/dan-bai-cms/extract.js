@@ -253,8 +253,10 @@ function docFromHtml(html, url) {
   // Sapo: nhãn, hoặc đoạn ngắn ngay sau tiêu đề.
   let sapo = found.sapo || ''; let sapoEl = null;
   if (!sapo && titleEl) {
-    const next = pool[pool.indexOf(titleEl) + 1];
-    if (next && !next.querySelector('img') && !/^H[1-6]$/.test(next.tagName) && clean(next.textContent).length <= 400) {
+    // Bỏ qua ảnh nằm giữa tiêu đề và sapo (ảnh đại diện); sapo là đoạn chữ ngắn đầu tiên sau đó.
+    const ti = pool.indexOf(titleEl);
+    const next = pool.slice(ti + 1, ti + 5).find((el) => clean(el.textContent) && !/^H[1-6]$/.test(el.tagName));
+    if (next && clean(next.textContent).length <= 400) {
       sapo = clean(next.textContent); sapoEl = next;
       bodyItems = bodyItems.filter((el) => el !== sapoEl);
     }
@@ -263,10 +265,10 @@ function docFromHtml(html, url) {
   // Ảnh đại diện khi không có dòng «Ảnh đại diện:»: ảnh đầu tiên nằm sau tiêu đề/sapo; không có thì ảnh đầu tiên của tài liệu.
   const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
   if (!coverUrl) {
+    // Ảnh đầu tiên sau tiêu đề (thường nằm ngay dưới tiêu đề, trước sapo).
     const titleIdx = titleEl ? items.indexOf(titleEl) : -1;
-    const sapoIdx = sapoEl ? items.indexOf(sapoEl) : titleIdx;
     const imgOf = (el) => (el.tagName === 'IMG' ? el : el.querySelector('img'));
-    const after = items.slice(Math.max(sapoIdx, titleIdx, -1) + 1).map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
+    const after = items.slice(titleIdx + 1).map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
     const any = items.map(imgOf).find((x) => x && /^https?:\/\//i.test(x.getAttribute('src') || ''));
     const chosen = after || any;
     if (chosen) chosen.setAttribute('data-dbcover', '1');

@@ -260,7 +260,7 @@ async function danBaiFill(data, map, opts) {
     input.files = dt.files;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    return !!(await waitFor(() => f.querySelector('img'), 20000, 300));
+    return !!(await waitFor(() => f.querySelector('img'), 60000, 300));
   }
   if (opts.importCover) {
     if (data.coverFile) { try { out.cover = await setCover(data.coverFile); } catch (e) { out.cover = false; } }
@@ -341,9 +341,13 @@ async function danBaiFill(data, map, opts) {
       .filter((e) => visible(e) && /sua hinh anh|chen hinh anh|them hinh anh/.test(norm(text(e)).slice(0, 80))
         && e.querySelector('input[type=file]') && e.querySelector('[data-icon="check"]'))
       .sort((a, b) => area(a) - area(b))[0] || null;
+    // Chỉ đóng bằng nút X của hộp (không dùng Esc vì có thể đóng cả form bài).
     const closeDlg = (dlg) => {
       const x = dlg && [...dlg.querySelectorAll('[data-icon="close"]')].map(T.buttonOf).filter(visible)[0];
       if (x) x.click();
+    };
+    const closeStale = async () => {
+      for (let k = 0; k < 3; k++) { const d = findImgDialog(); if (!d) break; closeDlg(d); await sleep(700); }
     };
     for (const im of list) {
       const marker = `[[ẢNH ${im.n}]]`;
@@ -372,48 +376,52 @@ async function danBaiFill(data, map, opts) {
       const cleanMarker = () => { const h = findMarker(); if (h && h.node.nodeValue.includes(marker)) { h.node.nodeValue = h.node.nodeValue.replace(marker, ''); notify(); } };
       const snapshot = () => new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
 
-      let hit = findMarker();
-      if (!hit) { res.fail.push(`ảnh ${im.n} (không thấy dấu ${marker} trong bài)`); continue; }
-
-      // Cách chính: hộp Thêm/Sửa hình ảnh
-      if (btn) {
+      let done = false; let why = '';
+      // Cách chính (đúng như thao tác trong video): nút ảnh → hộp Thêm/Sửa hình ảnh → chọn tệp → chờ CMS tải → Lưu.
+      for (let attempt = 1; attempt <= 2 && !done && btn; attempt++) {
+        await closeStale();
+        const hit = findMarker();
+        if (!hit) { why = `không thấy dấu ${marker}`; break; }
         selectMarker(hit);
         const before = snapshot();
         btn.click();
-        const dlg = await waitFor(findImgDialog, 4000);
-        if (dlg) {
-          const input = dlg.querySelector('input[type=file]');
-          const dt = new DataTransfer();
-          dt.items.add(makeFile(im));
-          input.files = dt.files;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          // Chờ CMS tải xong: ô Image Url có địa chỉ.
-          await waitFor(() => [...dlg.querySelectorAll('input')].some((i) => isRemote(i.value)), 40000, 400);
-          await sleep(400);
-          const save = [...dlg.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop();
-          if (save) save.click();
-          if (await waitFor(() => remoteNew(before), 15000, 300)) { cleanMarker(); res.ok++; continue; }
-          restoreMarkerFrom(before);
-          closeDlg(dlg);
-          res.fail.push(`ảnh ${im.n} (CMS chưa nhận ảnh vào bài)`);
-          continue;
-        }
-      }
-
-      // Cách dự phòng: dán tệp ảnh vào vị trí dấu
-      hit = findMarker();
-      if (!hit) { res.fail.push(`ảnh ${im.n} (mất dấu ${marker})`); continue; }
-      selectMarker(hit);
-      const before2 = snapshot();
-      try {
-        const dt = new (ed.getWin().DataTransfer)();
+        const dlg = await waitFor(findImgDialog, 6000);
+        if (!dlg) { why = 'không mở được hộp Thêm/Sửa hình ảnh'; continue; }
+        const input = dlg.querySelector('input[type=file]');
+        const dt = new DataTransfer();
         dt.items.add(makeFile(im));
-        body.dispatchEvent(new (ed.getWin().ClipboardEvent)('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-      } catch (e) { /* không tạo được sự kiện dán */ }
-      if (await waitFor(() => remoteNew(before2), 20000, 300)) { cleanMarker(); res.ok++; continue; }
-      restoreMarkerFrom(before2);
-      res.fail.push(btn ? `ảnh ${im.n} (không mở được hộp chèn ảnh và dán cũng không lên CMS)` : `ảnh ${im.n} (không thấy nút chèn ảnh và dán không lên CMS)`);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        // Chờ CMS tải xong (ô Image Url có địa chỉ); CMS chậm nên chờ lâu.
+        const uploaded = await waitFor(() => [...dlg.querySelectorAll('input')].some((i) => isRemote(i.value)), 150000, 500);
+        if (!uploaded) { why = 'CMS không tải xong ảnh'; restoreMarkerFrom(before); closeDlg(dlg); continue; }
+        await sleep(500);
+        const save = [...dlg.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop();
+        if (save) save.click();
+        if (await waitFor(() => remoteNew(before), 60000, 400)) { cleanMarker(); done = true; break; }
+        why = 'đã tải ảnh nhưng chưa chèn được vào bài';
+        restoreMarkerFrom(before);
+        closeDlg(findImgDialog());
+      }
+      // Dự phòng: dán tệp ảnh vào vị trí dấu
+      if (!done) {
+        const hit = findMarker();
+        if (hit) {
+          selectMarker(hit);
+          const before2 = snapshot();
+          try {
+            const dt = new (ed.getWin().DataTransfer)();
+            dt.items.add(makeFile(im));
+            body.dispatchEvent(new (ed.getWin().ClipboardEvent)('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+          } catch (e) { /* không tạo được sự kiện dán */ }
+          if (await waitFor(() => remoteNew(before2), 90000, 400)) { cleanMarker(); done = true; }
+          else restoreMarkerFrom(before2);
+        } else if (!why) why = `mất dấu ${marker}`;
+      }
+      if (done) res.ok++;
+      else res.fail.push(`ảnh ${im.n} (${why || 'không chèn được'})`);
+      await sleep(1000);
     }
     return res;
   }

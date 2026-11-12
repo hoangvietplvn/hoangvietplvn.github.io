@@ -169,12 +169,14 @@ function blobToB64(blob) {
   });
 }
 
-// Giới hạn ảnh của CMS là 10MB; ảnh lớn hơn được nén lại (JPEG) xuống dưới 9MB, giữ kích thước đủ dùng cho bài báo.
-const MAX_IMG_BYTES = 9 * 1024 * 1024;
+// CMS giới hạn 10MB và hạ tầng CMS chậm khi tải ảnh nặng nên ảnh được nén về khoảng 2-3MB.
+const MAX_IMG_BYTES = 2.5 * 1024 * 1024;
+const HARD_IMG_BYTES = 3 * 1024 * 1024;
 async function shrinkImage(blob) {
   const bmp = await createImageBitmap(blob);
-  for (const side of [2400, 1800, 1400]) {
-    for (const q of [0.88, 0.8, 0.7]) {
+  let best = null;
+  for (const side of [2000, 1600, 1200]) {
+    for (const q of [0.85, 0.75, 0.65]) {
       const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
       const w = Math.max(1, Math.round(bmp.width * k)); const h = Math.max(1, Math.round(bmp.height * k));
       const c = new OffscreenCanvas(w, h);
@@ -182,10 +184,12 @@ async function shrinkImage(blob) {
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
       ctx.drawImage(bmp, 0, 0, w, h);
       const out = await c.convertToBlob({ type: 'image/jpeg', quality: q });
+      if (!best || out.size < best.size) best = out;
       if (out.size <= MAX_IMG_BYTES) return out;
     }
   }
-  throw new Error('không nén được ảnh xuống dưới 9MB');
+  if (best && best.size <= HARD_IMG_BYTES) return best;
+  throw new Error('không nén được ảnh xuống khoảng 2-3MB');
 }
 
 // Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) và chuẩn bị để đưa vào CMS.
@@ -194,7 +198,7 @@ async function fetchImageFile(src) {
   if (!res.ok) throw new Error('máy chủ trả về ' + res.status);
   let blob = await res.blob();
   if (!/^image\//.test(blob.type)) throw new Error('không phải ảnh (có thể cần quyền xem trên Drive)');
-  if (blob.size > MAX_IMG_BYTES) blob = await shrinkImage(blob);
+  if (blob.size > MAX_IMG_BYTES || !/image\/(jpeg|png)/.test(blob.type)) blob = await shrinkImage(blob);
   return { b64: await blobToB64(blob), mime: blob.type, ext: (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
 }
 
