@@ -161,7 +161,7 @@ function docFromHtml(html, url) {
   const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  // Chữ đậm / nghiêng: Google Docs đặt trong lớp CSS gắn vào span.
+  // Chữ đậm / nghiêng (Google Docs đặt trong lớp CSS gắn vào span).
   const bold = new Set(); const ital = new Set();
   doc.querySelectorAll('style').forEach((st) => {
     const re = /\.([\w-]+)\s*\{([^}]*)\}/g; let m;
@@ -179,29 +179,85 @@ function docFromHtml(html, url) {
     if (b) wrap(node, 'strong');
   });
 
-  const items = [...doc.body.children].filter((el) => clean(el.textContent) || el.querySelector('img'));
-  const LABEL = { 'tieu de': 'title', 'sapo': 'sapo', 'tom tat': 'sapo', 'tac gia': 'author', 'danh muc': 'category', 'anh dai dien': 'cover', 'anh': 'cover', 'noi dung': 'start' };
+  // Google Docs đôi khi bọc nội dung trong một khối div.
+  let root = doc.body;
+  if (root.children.length === 1 && root.children[0].tagName === 'DIV' && root.children[0].children.length > 1) root = root.children[0];
+
+  // Link Drive đứng riêng trong đoạn (tên/đường dẫn là toàn bộ đoạn) → ảnh cần tải từ Drive.
+  const driveId = (href) => {
+    let h = href || '';
+    const q = /[?&]q=([^&]+)/.exec(h);
+    if (q) { try { h = decodeURIComponent(q[1]); } catch (e) { /* giữ nguyên */ } }
+    const m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([\w-]+)/.exec(h);
+    return m ? m[1] : '';
+  };
+  [...root.querySelectorAll('a[href]')].forEach((a) => {
+    const id = driveId(a.getAttribute('href'));
+    if (!id) return;
+    const p = a.parentElement;
+    if (!p || (clean(p.textContent) && clean(p.textContent) !== clean(a.textContent))) return;
+    const img = doc.createElement('img');
+    img.setAttribute('src', 'https://drive.google.com/uc?export=download&id=' + id);
+    a.replaceWith(img);
+  });
+
+  // Nhãn đầu tài liệu (không bắt buộc): Tiêu đề, Sapo/Tóm tắt, Tác giả, Danh mục, Ảnh đại diện, Nội dung.
+  const labelKey = (raw) => {
+    const n = norm(raw);
+    if (/^tieu de/.test(n)) return 'title';
+    if (/^(sapo|tom tat)/.test(n)) return 'sapo';
+    if (/^tac gia/.test(n)) return 'author';
+    if (/^(danh muc|chuyen muc)/.test(n)) return 'category';
+    if (/^(anh dai dien|anh bia)/.test(n)) return 'cover';
+    if (n === 'noi dung') return 'start';
+    return '';
+  };
+  const items = [...root.children].filter((el) => clean(el.textContent) || el.querySelector('img'));
   const found = {}; const used = new Set(); let start = -1; let startRest = '';
   items.forEach((el, idx) => {
     if (start >= 0) return;
-    const m = /^([^:]{2,30}):\s*([\s\S]*)$/.exec(clean(el.textContent));
+    const m = /^([^:]{2,40}):\s*([\s\S]*)$/.exec(clean(el.textContent));
     if (!m) return;
-    const key = LABEL[norm(m[1])];
+    const key = labelKey(m[1]);
     if (!key) return;
     used.add(idx);
     if (key === 'start') { start = idx; startRest = m[2].trim(); return; }
-    found[key] = m[2].trim();
+    if (!found[key]) found[key] = m[2].trim();
   });
 
   let bodyItems;
   if (start >= 0) bodyItems = items.slice(start + 1);
-  else if (Object.keys(found).length) bodyItems = items.filter((_, idx) => !used.has(idx));
+  else if (Object.keys(found).length) bodyItems = items.filter((_, i) => !used.has(i));
+  else bodyItems = items.slice();
+  const pool = items.filter((_, i) => !used.has(i));
+
+  // Tiêu đề: nhãn → heading hoặc dòng ngắn trong 3 đoạn đầu → tên tài liệu.
+  let titleEl = null; let titleFrom = '';
+  if (found.title) titleFrom = 'nhãn «Tiêu đề» trong tài liệu';
   else {
-    found.title = items[0] ? clean(items[0].textContent) : '';
-    let k = 1;
-    const second = items[1];
-    if (second && !second.querySelector('img') && clean(second.textContent).length <= 400) { found.sapo = clean(second.textContent); k = 2; }
-    bodyItems = items.slice(k);
+    const head = pool.slice(0, 3);
+    const cand = head.find((el) => /^H[1-3]$/.test(el.tagName) && clean(el.textContent))
+      || head.find((el) => /(^|\s)title(\s|$)/.test(el.className || '') && clean(el.textContent))
+      || head.find((el) => clean(el.textContent) && !el.querySelector('img'));
+    if (cand && clean(cand.textContent).length <= 250) {
+      titleEl = cand; found.title = clean(cand.textContent);
+      titleFrom = /^H/.test(cand.tagName) ? 'tiêu đề (heading) đầu tài liệu' : 'dòng đầu tài liệu';
+    }
+  }
+  if (!found.title) {
+    const dn = clean(doc.title).replace(/\s*-\s*Google Docs$/i, '');
+    if (dn) { found.title = dn; titleFrom = 'tên tài liệu'; }
+  }
+  if (titleEl) bodyItems = bodyItems.filter((el) => el !== titleEl);
+
+  // Sapo: nhãn, hoặc đoạn ngắn ngay sau tiêu đề.
+  let sapo = found.sapo || ''; let sapoEl = null;
+  if (!sapo && titleEl) {
+    const next = pool[pool.indexOf(titleEl) + 1];
+    if (next && !next.querySelector('img') && !/^H[1-6]$/.test(next.tagName) && clean(next.textContent).length <= 400) {
+      sapo = clean(next.textContent); sapoEl = next;
+      bodyItems = bodyItems.filter((el) => el !== sapoEl);
+    }
   }
 
   const holder = doc.createElement('div');
@@ -210,15 +266,15 @@ function docFromHtml(html, url) {
   const text = clean(holder.textContent);
   if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
 
+  const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
-  const firstImg = holder.querySelector('img');
-  const cover = coverUrl || (firstImg && firstImg.getAttribute('src')) || '';
-  const title = clean(found.title) || clean(doc.title).replace(/\s*-\s*Google Docs$/i, '');
+  const cover = coverUrl || images[0] || '';
   return {
-    url, title, sapo: clean(found.sapo || ''), html: sanitizeHtml(holder.innerHTML),
-    author: clean(found.author || ''), site: '', cover: /^https?:\/\//i.test(cover) ? cover : '',
-    category: clean(found.category || ''), length: text.length,
+    url, title: clean(found.title), sapo: clean(sapo), html: sanitizeHtml(holder.innerHTML),
+    author: clean(found.author || ''), site: '', cover, category: clean(found.category || ''),
+    length: text.length, images, fromDoc: true,
+    notes: ['Tiêu đề lấy từ: ' + (titleFrom || 'không tìm thấy, hãy nhập tay') + '.'],
   };
-};
+}
 
 window.DanBai = { parseArticle, fetchHtml, sanitizeHtml, docFromHtml };

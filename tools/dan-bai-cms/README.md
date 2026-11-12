@@ -27,8 +27,11 @@ Cập nhật bản mới: chép đè thư mục cũ rồi bấm nút tải lại
   (nội dung bài từ đây trở xuống)
   ```
 
-- Không có nhãn: đoạn đầu là tiêu đề, đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung.
-- Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại. Ảnh trong tài liệu được giữ đường dẫn; ảnh đại diện lấy từ dòng «Ảnh đại diện» hoặc ảnh đầu tiên.
+- Không có nhãn: tiêu đề là heading hoặc dòng đầu tài liệu (trong 3 đoạn đầu), đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung. Không tìm thấy thì lấy tên tài liệu. Thông báo sau khi lấy bài ghi rõ tiêu đề lấy từ đâu.
+- Tác giả: chỉ lấy từ dòng «Tác giả:». Không có dòng này thì ô Tác giả trên CMS được để trống (không giữ giá trị mặc định của CMS).
+- Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại.
+- Ảnh trong bài: tiện ích tải từng ảnh (ảnh chèn trong Doc, hoặc link Drive đứng riêng trong một đoạn), rồi chèn vào CMS đúng vị trí. Vị trí được đánh dấu tạm bằng `[[ẢNH n]]`. Ảnh nào không tải hoặc không chèn được thì dấu `[[ẢNH n]]` còn lại, bạn chèn tay rồi xóa dấu. Khi còn ảnh lỗi, tiện ích không tự bấm lưu.
+- Ảnh đại diện lấy từ dòng «Ảnh đại diện» hoặc ảnh đầu tiên trong bài.
 
 ## Dùng hằng ngày
 

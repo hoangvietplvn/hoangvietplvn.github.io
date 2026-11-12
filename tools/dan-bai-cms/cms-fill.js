@@ -222,10 +222,8 @@ async function danBaiFill(data, map, opts) {
   }
 
   // ---- 2. Tác giả ----
-  if (data.author) {
-    try { out.author = setTextKind('author', data.author); } catch (e) { out.author = false; }
-    if (out.author === null) out.author = false;
-  }
+  // Tác giả luôn được ghi theo bài; trống thì xóa giá trị mặc định có sẵn của CMS.
+  try { out.author = setTextKind('author', data.author || ''); } catch (e) { out.author = false; }
 
   // ---- 3. Ngày đăng = bây giờ: bấm ô ngày để mở lịch, rồi bấm «Set to Now» ----
   async function setDateNow() {
@@ -321,12 +319,68 @@ async function danBaiFill(data, map, opts) {
   // ---- 7. Nội dung ----
   try { out.body = await fillBody(data.html); } catch (e) { out.body = false; out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
+  // Ảnh trong bài: thay từng dấu [[ẢNH n]] bằng ảnh đã tải, qua nút chèn ảnh của trình soạn thảo, đúng vị trí dấu.
+  async function uploadBodyImages(list) {
+    const res = { ok: 0, fail: [] };
+    const f = fieldEl('body');
+    const ed = f && T.tinyEditors().find((e) => { try { return f.contains(e.getContainer()); } catch (x) { return false; } });
+    const btn = f && [...f.querySelectorAll('button, [role=button]')].filter(visible)
+      .find((b) => /\bimage\b|hinh anh|chen anh/.test(norm(b.getAttribute('aria-label') || b.title || '')));
+    const dlgFile = () => [...document.querySelectorAll('input[type=file]')].reverse().find((i) => i.closest('.tox-dialog, [role=dialog], .v-dialog, .v-card')) || null;
+    const closeDialog = () => {
+      const c = [...document.querySelectorAll('.tox-dialog button')].filter(visible).find((b) => /^(huy|cancel|dong|close)$/.test(norm(text(b))));
+      if (c) c.click();
+    };
+    for (const im of list) {
+      const marker = `[[ẢNH ${im.n}]]`;
+      if (!ed || !btn) { res.fail.push(`ảnh ${im.n} (không thấy trình soạn thảo hoặc nút chèn ảnh)`); continue; }
+      const body = ed.getBody();
+      const walker = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+      let hit = null; let node;
+      while ((node = walker.nextNode())) { const i = node.nodeValue.indexOf(marker); if (i >= 0) { hit = { node, i }; break; } }
+      if (!hit) { res.fail.push(`ảnh ${im.n} (không thấy dấu ${marker} trong bài)`); continue; }
+      const rng = ed.dom.createRng();
+      rng.setStart(hit.node, hit.i); rng.setEnd(hit.node, hit.i + marker.length);
+      ed.selection.setRng(rng); ed.focus();
+      const before = body.querySelectorAll('img').length;
+      btn.click();
+      let input = await waitFor(dlgFile, 3000);
+      if (!input) {
+        const tab = [...document.querySelectorAll('.tox-dialog button, [role=tab]')].filter(visible).find((b) => /tai len|upload/.test(norm(text(b))));
+        if (tab) { tab.click(); input = await waitFor(dlgFile, 3000); }
+      }
+      if (!input) { res.fail.push(`ảnh ${im.n} (không thấy ô chọn tệp trong hộp chèn ảnh)`); closeDialog(); continue; }
+      const bin = atob(im.b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      const dt = new DataTransfer();
+      dt.items.add(new File([u8], im.name, { type: im.mime || 'image/jpeg' }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(2500);
+      const primary = [...document.querySelectorAll('.tox-dialog__footer button, .tox-dialog button.tox-button--primary')].filter(visible).pop();
+      if (primary) primary.click();
+      const added = await waitFor(() => body.querySelectorAll('img').length > before, 20000, 300);
+      if (!added) { res.fail.push(`ảnh ${im.n} (chưa thấy ảnh được chèn)`); closeDialog(); continue; }
+      if (hit.node.isConnected && hit.node.nodeValue.includes(marker)) hit.node.nodeValue = hit.node.nodeValue.replace(marker, '');
+      res.ok++;
+    }
+    return res;
+  }
+  if (data.bodyImages && data.bodyImages.length) {
+    try { out.images = await uploadBodyImages(data.bodyImages); }
+    catch (e) { out.images = { ok: 0, fail: data.bodyImages.map((x) => 'ảnh ' + x.n + ' (' + e.message + ')') }; }
+  }
+  if (data.imageFails && data.imageFails.length) out.images = Object.assign({ ok: 0, fail: [] }, out.images, { fail: [...((out.images && out.images.fail) || []), ...data.imageFails] });
+
   // ---- 8. Bấm nút lưu (chỉ khi mọi ô đều điền được) ----
   if (opts.autoSubmit) {
     const btn = T.resolve(map.submit);
     const failed = ['title', 'sapo', 'body', 'author', 'date', 'cover', 'category'].some((k) => out[k] === false);
     if (!btn || !visible(btn)) out.submit = false;
     else if (failed) { out.submit = false; out.notes.push('Còn ô chưa điền được nên không tự bấm nút lưu.'); }
+    else if (out.images && out.images.fail && out.images.fail.length) { out.submit = false; out.notes.push('Còn ảnh chưa chèn được nên không tự bấm nút lưu.'); }
     else { setTimeout(() => btn.click(), 800); out.submit = true; }
   }
   return out;

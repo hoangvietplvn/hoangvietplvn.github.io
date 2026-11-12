@@ -160,6 +160,54 @@ async function getGoogleDoc(id, url) {
   return DanBai.docFromHtml(html, url);
 }
 
+function blobToB64(blob) {
+  return new Promise((ok, bad) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(String(fr.result).split(',')[1]);
+    fr.onerror = () => bad(fr.error);
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) để đưa vào CMS dưới dạng tệp.
+async function fetchImageB64(src) {
+  const res = await fetch(src, { credentials: /drive\.google\.com/.test(src) ? 'include' : 'omit', redirect: 'follow' });
+  if (!res.ok) throw new Error('máy chủ trả về ' + res.status);
+  const blob = await res.blob();
+  if (!/^image\//.test(blob.type)) throw new Error('không phải ảnh (có thể cần quyền xem trên Drive)');
+  if (blob.size > 10 * 1024 * 1024) throw new Error('ảnh lớn hơn 10MB');
+  const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  return { b64: await blobToB64(blob), mime: blob.type, size: blob.size, ext };
+}
+
+// Thay mỗi ảnh trong bài bằng dấu [[ẢNH n]] để CMS chèn ảnh đúng vị trí đó sau.
+function prepareDocImages(html) {
+  const d = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
+  const items = [];
+  d.body.querySelectorAll('img').forEach((img) => {
+    const src = img.getAttribute('src') || '';
+    if (!/^https?:\/\//i.test(src)) { img.remove(); return; }
+    const n = items.length + 1;
+    items.push({ n, src });
+    img.replaceWith(d.createTextNode(` [[ẢNH ${n}]] `));
+  });
+  return { html: d.body.innerHTML, items };
+}
+
+async function fetchDocImages(items) {
+  const ok = []; const fail = [];
+  let total = 0;
+  for (const it of items) {
+    if (total > 30 * 1024 * 1024) { fail.push(`ảnh ${it.n} (vượt giới hạn tổng dung lượng)`); continue; }
+    try {
+      const b = await fetchImageB64(it.src);
+      total += b.size;
+      ok.push({ n: it.n, b64: b.b64, mime: b.mime, name: `anh-trong-bai-${it.n}.${b.ext}` });
+    } catch (e) { fail.push(`ảnh ${it.n} (${e.message})`); }
+  }
+  return { ok, fail };
+}
+
 async function getArticle(url) {
   const g = GDOC_RE.exec(url);
   if (g) return getGoogleDoc(g[1], url);
@@ -192,7 +240,7 @@ $('fetch-form').addEventListener('submit', async (e) => {
     $('f-body').innerHTML = article.html; // đã làm sạch trong extract.js
     $('article').hidden = false;
     const imgs = $('f-body').querySelectorAll('img').length;
-    setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh. Hãy đọc lại trước khi điền vào CMS.`, 'ok');
+    setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh. Hãy đọc lại trước khi điền vào CMS.` + (article.notes ? ' ' + article.notes.join(' ') : ''), 'ok');
   } catch (err) {
     $('article').hidden = true;
     setStatus($('status'), 'Không lấy được bài: ' + (err && err.message ? err.message : err), 'err');
@@ -251,6 +299,18 @@ $('fill-btn').addEventListener('click', async () => {
       try { data.coverFile = await fetchCover(data.cover); }
       catch (e) { coverNote = ' Không tải được ảnh đại diện từ bài gốc (' + e.message + '); hãy tải ảnh rồi đẩy lên tay.'; }
     }
+    let imageNote = '';
+    if (article && article.fromDoc) {
+      const prep = prepareDocImages(data.html);
+      data.html = prep.html;
+      if (prep.items.length) {
+        setStatus(st, `Đang tải ${prep.items.length} ảnh từ tài liệu…`);
+        const got = await fetchDocImages(prep.items);
+        data.bodyImages = got.ok;
+        data.imageFails = got.fail;
+        if (got.fail.length) imageNote = ' Không tải được: ' + got.fail.join('; ') + '. Dấu [[ẢNH n]] còn trong bài, hãy chèn ảnh đó tay rồi xóa dấu.';
+      }
+    }
     const { tab, opened } = await getCmsTab();
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['cms-fill.js'] });
     const [res] = await chrome.scripting.executeScript({
@@ -272,7 +332,9 @@ $('fill-btn').addEventListener('click', async () => {
     else if (settings.autoSubmit && r.submit === false) text += ' Chưa bấm nút lưu' + (settings.map2.submit ? '.' : ' vì chưa chỉ định nút.');
     else if (done.length) text += ' Hãy kiểm tra rồi bấm lưu trên CMS.';
     if (r.notes && r.notes.length) text += ' ' + r.notes.join(' ');
-    text += coverNote;
+    text += coverNote + imageNote;
+    if (r.images && r.images.ok) text += ` Đã chèn ${r.images.ok}/${(data.bodyImages || []).length} ảnh vào nội dung.`;
+    if (r.images && r.images.fail && r.images.fail.length) text += ' Chưa chèn được: ' + r.images.fail.join('; ') + '.';
     setStatus(st, text.trim(), !done.length || missed.length ? 'err' : 'ok');
     if (done.length) await focusTab(tab);
   } catch (err) {
