@@ -1,7 +1,9 @@
 {
   "mode": "manual",
   "lead": "thuong-ton-phap-luat-la-chan-thep",
-  "side": [],
+  "side": [
+    "ky-niem-nhan-giai-bao-chi"
+  ],
   "side_label": "Đáng đọc",
   "more": [],
   "more_label": "Mới đăng"
