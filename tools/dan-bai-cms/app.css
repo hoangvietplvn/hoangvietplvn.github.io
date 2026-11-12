@@ -36,3 +36,5 @@ summary { cursor: pointer; font-weight: 600; }
 #map-table button { padding: 4px 10px; font-size: 13px; }
 #map-table td:last-child { white-space: nowrap; text-align: right; }
 @media (max-width: 560px) { .cols { grid-template-columns: 1fr; } }
+input.inline { width: 220px; margin-left: 6px; padding: 5px 8px; }
+label.check { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

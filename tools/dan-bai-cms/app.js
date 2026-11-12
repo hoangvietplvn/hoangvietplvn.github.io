@@ -1,16 +1,18 @@
-/* global DanBai, danBaiFill, danBaiPick */
+/* global DanBai, danBaiFill, danBaiPick, danBaiDiag */
 const $ = (id) => document.getElementById(id);
-const DEFAULT_CMS = 'https://cms.phapluat.gov.vn/admin/';
+const DEFAULT_CMS = 'https://cms.phapluat.gov.vn/admin/content-articles/review';
 const FIELDS = [
   ['title', 'ô Tiêu đề'],
-  ['sapo', 'ô Sapo'],
+  ['sapo', 'ô Tóm tắt'],
   ['body', 'ô Nội dung'],
-  ['author', 'ô Tác giả (tùy chọn)'],
-  ['source', 'ô Nguồn (tùy chọn)'],
-  ['submit', 'nút Gửi duyệt (tùy chọn)'],
+  ['author', 'ô Tác giả'],
+  ['date', 'ô Ngày đăng'],
+  ['category', 'ô Danh mục'],
+  ['submit', 'nút Lưu hoặc Gửi phê duyệt'],
 ];
 
-let settings = { cmsUrl: DEFAULT_CMS, map: {}, autoSubmit: false };
+// map2: bản chỉ định ô của phiên bản này (bản cũ lưu ở «map» không còn dùng).
+let settings = { cmsUrl2: DEFAULT_CMS, map2: {}, autoSubmit: false, setDate: true, importCover: true, credit: false, category: '' };
 let article = null;
 
 function setStatus(el, text, kind) { el.textContent = text; el.className = 'status' + (kind ? ' ' + kind : ''); }
@@ -18,8 +20,12 @@ function setStatus(el, text, kind) { el.textContent = text; el.className = 'stat
 // ---------- Thiết lập ----------
 async function loadSettings() {
   settings = await chrome.storage.local.get(settings);
-  $('s-cms').value = settings.cmsUrl;
+  $('s-cms').value = settings.cmsUrl2;
   $('s-submit').checked = settings.autoSubmit;
+  $('s-date').checked = settings.setDate;
+  $('s-cover').checked = settings.importCover;
+  $('f-credit').checked = settings.credit;
+  $('f-category').value = settings.category;
   renderMap();
 }
 
@@ -29,10 +35,10 @@ function renderMap() {
   for (const [key, label] of FIELDS) {
     const tr = body.insertRow();
     tr.insertCell().textContent = label.charAt(0).toUpperCase() + label.slice(1);
-    const m = settings.map[key];
+    const m = settings.map2[key];
     const sel = tr.insertCell();
     sel.className = 'sel';
-    sel.textContent = m ? (m.frame ? m.frame + ' ▸ ' : '') + m.selector : (key === 'author' || key === 'source' || key === 'submit' ? 'chưa chỉ định' : 'tự dò');
+    sel.textContent = m ? (m.frame ? m.frame + ' ▸ ' : '') + m.selector : (key === 'submit' ? 'chưa chỉ định' : 'tự dò theo nhãn');
     const act = tr.insertCell();
     const pick = document.createElement('button');
     pick.type = 'button'; pick.textContent = 'Chỉ định';
@@ -41,26 +47,27 @@ function renderMap() {
     if (m) {
       const clear = document.createElement('button');
       clear.type = 'button'; clear.textContent = 'Xóa'; clear.style.marginLeft = '6px';
-      clear.addEventListener('click', async () => { delete settings.map[key]; await chrome.storage.local.set({ map: settings.map }); renderMap(); });
+      clear.addEventListener('click', async () => { delete settings.map2[key]; await chrome.storage.local.set({ map2: settings.map2 }); renderMap(); });
       act.append(clear);
     }
   }
 }
 
 $('s-cms').addEventListener('change', async () => {
-  settings.cmsUrl = $('s-cms').value.trim() || DEFAULT_CMS;
-  await chrome.storage.local.set({ cmsUrl: settings.cmsUrl });
+  settings.cmsUrl2 = $('s-cms').value.trim() || DEFAULT_CMS;
+  $('s-cms').value = settings.cmsUrl2;
+  await chrome.storage.local.set({ cmsUrl2: settings.cmsUrl2 });
 });
-$('s-submit').addEventListener('change', async () => {
-  settings.autoSubmit = $('s-submit').checked;
-  await chrome.storage.local.set({ autoSubmit: settings.autoSubmit });
-});
+for (const [id, key] of [['s-submit', 'autoSubmit'], ['s-date', 'setDate'], ['s-cover', 'importCover'], ['f-credit', 'credit']]) {
+  $(id).addEventListener('change', () => { settings[key] = $(id).checked; chrome.storage.local.set({ [key]: settings[key] }); });
+}
+$('f-category').addEventListener('change', () => { settings.category = $('f-category').value.trim(); chrome.storage.local.set({ category: settings.category }); });
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.map) { settings.map = changes.map.newValue || {}; renderMap(); }
+  if (changes.map2) { settings.map2 = changes.map2.newValue || {}; renderMap(); }
 });
 
 // ---------- Tab CMS ----------
-function cmsOrigin() { try { return new URL(settings.cmsUrl).origin; } catch (e) { return new URL(DEFAULT_CMS).origin; } }
+function cmsOrigin() { try { return new URL(settings.cmsUrl2).origin; } catch (e) { return new URL(DEFAULT_CMS).origin; } }
 
 function waitLoaded(tabId, ms = 30000) {
   return new Promise((resolve) => {
@@ -77,7 +84,7 @@ async function getCmsTab() {
   const origin = cmsOrigin();
   const tabs = (await chrome.tabs.query({})).filter((t) => (t.url || '').startsWith(origin + '/'));
   if (tabs.length) return { tab: tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0], opened: false };
-  const tab = await chrome.tabs.create({ url: settings.cmsUrl, active: false });
+  const tab = await chrome.tabs.create({ url: settings.cmsUrl2, active: false });
   await waitLoaded(tab.id);
   return { tab, opened: true };
 }
@@ -97,6 +104,18 @@ async function startPick(field, label) {
     setStatus($('fill-status'), 'Không mở được trang CMS: ' + e.message, 'err');
   }
 }
+
+$('diag-btn').addEventListener('click', async () => {
+  try {
+    const { tab } = await getCmsTab();
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['cms-fill.js'] });
+    const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: () => danBaiDiag() });
+    await navigator.clipboard.writeText(res.result || '');
+    $('diag-status').textContent = 'Đã sao chép. Hãy dán vào tin nhắn gửi người hỗ trợ.';
+  } catch (e) {
+    $('diag-status').textContent = 'Không lấy được: ' + e.message;
+  }
+});
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'picked') {
@@ -143,11 +162,10 @@ $('fetch-form').addEventListener('submit', async (e) => {
     article = await getArticle(url);
     $('f-title').value = article.title;
     $('f-sapo').value = article.sapo;
-    $('f-author').value = article.author;
     $('f-site').value = article.site;
+    $('f-author').value = article.site ? 'Theo ' + article.site : article.author;
+    $('f-cover').value = article.cover;
     $('f-body').innerHTML = article.html; // đã làm sạch trong extract.js
-    $('cover-row').hidden = !article.cover;
-    if (article.cover) { $('cover-link').href = article.cover; $('cover-link').textContent = article.cover; }
     $('article').hidden = false;
     const imgs = $('f-body').querySelectorAll('img').length;
     setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh. Hãy đọc lại trước khi điền vào CMS.`, 'ok');
@@ -173,7 +191,11 @@ function buildData() {
     p.append(em);
     html += '\n' + p.outerHTML;
   }
-  return { title: $('f-title').value.trim(), sapo: $('f-sapo').value.trim(), html, author: $('f-author').value.trim(), site };
+  const cover = $('f-cover').value.trim();
+  return {
+    title: $('f-title').value.trim(), sapo: $('f-sapo').value.trim(), html, author: $('f-author').value.trim(), site,
+    category: $('f-category').value.trim(), cover: /^https?:\/\//i.test(cover) ? cover : '',
+  };
 }
 
 $('fill-btn').addEventListener('click', async () => {
@@ -187,24 +209,25 @@ $('fill-btn').addEventListener('click', async () => {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['cms-fill.js'] });
     const [res] = await chrome.scripting.executeScript({
       target: { tabId: tab.id }, world: 'MAIN',
-      func: (d, m, s) => danBaiFill(d, m, s), args: [data, settings.map, settings.autoSubmit],
+      func: (d, m, o) => danBaiFill(d, m, o),
+      args: [data, settings.map2, { autoSubmit: settings.autoSubmit, setDate: settings.setDate, importCover: settings.importCover }],
     });
     const r = res.result || {};
-    const names = { title: 'tiêu đề', sapo: 'sapo', body: 'nội dung', author: 'tác giả', source: 'nguồn' };
+    const names = { title: 'tiêu đề', sapo: 'tóm tắt', body: 'nội dung', author: 'tác giả', date: 'ngày đăng', cover: 'ảnh đại diện', category: 'danh mục' };
+    const manualNames = { ...names, cover: 'ảnh đại diện (nếu chưa có)' };
     const done = Object.keys(names).filter((k) => r[k] === true).map((k) => names[k]);
-    const missed = ['title', 'sapo', 'body'].filter((k) => r[k] === false).map((k) => names[k]);
+    const missed = Object.keys(names).filter((k) => r[k] === false).map((k) => names[k]);
+    const manual = Object.keys(names).filter((k) => r[k] === null && k !== 'sapo' && k !== 'author').map((k) => manualNames[k]);
     let text = done.length ? 'Đã điền: ' + done.join(', ') + '.' : '';
     if (missed.length) {
-      text += ` Không tìm thấy ô ${missed.join(', ')}.` + (opened
-        ? ' Hãy đăng nhập CMS, mở trang soạn bài mới rồi bấm lại.'
-        : ' Hãy mở trang soạn bài mới trên CMS rồi bấm lại, hoặc dùng «Chỉ định» trong phần Thiết lập CMS.');
-      $('settings').open = true;
+      text += ` Chưa điền được: ${missed.join(', ')}; hãy nhập tay các ô này` + (opened ? ' (nếu CMS chưa đăng nhập, hãy đăng nhập rồi bấm lại).' : '.');
     }
-    if (r.submit === true) text += ' Đã bấm nút gửi duyệt.';
-    else if (settings.autoSubmit && r.submit === false) text += ' Chưa gửi duyệt' + (settings.map.submit ? '.' : ' vì chưa chỉ định nút gửi duyệt.');
-    else if (!missed.length) text += ' Hãy kiểm tra trên CMS rồi bấm gửi duyệt.';
+    if (done.length && manual.length) text += ` Cần tự làm trên CMS: ${manual.join(', ')}.`;
+    if (r.submit === true) text += ' Đã bấm nút lưu.';
+    else if (settings.autoSubmit && r.submit === false) text += ' Chưa bấm nút lưu' + (settings.map2.submit ? '.' : ' vì chưa chỉ định nút.');
+    else if (done.length) text += ' Hãy kiểm tra rồi bấm lưu trên CMS.';
     if (r.notes && r.notes.length) text += ' ' + r.notes.join(' ');
-    setStatus(st, text.trim(), missed.length ? 'err' : 'ok');
+    setStatus(st, text.trim(), !done.length || missed.length ? 'err' : 'ok');
     if (done.length) await focusTab(tab);
   } catch (err) {
     setStatus(st, 'Không điền được vào CMS: ' + (err && err.message ? err.message : err), 'err');

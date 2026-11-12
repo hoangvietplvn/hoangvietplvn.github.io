@@ -4,7 +4,7 @@ function danBaiPick(field, label) {
   if (window.__danBaiPickCleanup) window.__danBaiPickCleanup();
 
   const unique = (doc, sel) => { try { return doc.querySelectorAll(sel).length === 1; } catch (e) { return false; } };
-  const stableId = (id) => id && !/\d{4,}|^(ember|react|radix|headlessui|:r)/i.test(id);
+  const stableId = (id) => id && !/\d{3,}|^(ember|react|radix|headlessui|tiny|:r)/i.test(id);
 
   function selectorFor(el) {
     const doc = el.ownerDocument;
@@ -36,7 +36,7 @@ function danBaiPick(field, label) {
 
   function target(el) {
     const doc = el.ownerDocument;
-    if (field === 'submit') return el.closest('button, a, input[type=submit], input[type=button], [role=button]') || el;
+    if (field === 'submit' || field === 'category' || field === 'date') return (field !== 'submit' && el.closest('input, select')) || el.closest('button, a, input[type=submit], input[type=button], [role=button], .v-button, .v-select') || el;
     if (doc.designMode === 'on' || doc.body.isContentEditable) return doc.body;
     return el.closest('[contenteditable="true"], [contenteditable=""], textarea, input') || el;
   }
@@ -52,9 +52,9 @@ function danBaiPick(field, label) {
     const el = target(e.target);
     const value = { selector: selectorFor(el), frame: entry.frame ? selectorFor(entry.frame) : null };
     cleanup(true);
-    chrome.storage.local.get({ map: {} }, ({ map }) => {
-      map[field] = value;
-      chrome.storage.local.set({ map }, () => {
+    chrome.storage.local.get({ map2: {} }, ({ map2 }) => {
+      map2[field] = value;
+      chrome.storage.local.set({ map2 }, () => {
         bar.textContent = `Đã ghi nhớ ${label}. Đang quay lại công cụ…`;
         bar.style.background = '#1b6e2d';
         setTimeout(() => bar.remove(), 1500);

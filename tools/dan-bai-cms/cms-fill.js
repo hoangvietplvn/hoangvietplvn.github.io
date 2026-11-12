@@ -1,29 +1,87 @@
 // Chạy trong trang CMS (ngữ cảnh của trang) để điền bài vào form soạn thảo.
-// Hàm phải tự chứa toàn bộ vì được tiêm qua chrome.scripting.executeScript.
+// Viết cho CMS nền Directus (ngăn «Tạo bài viết», trình soạn thảo TinyMCE) nhưng vẫn dò theo nhãn nên dùng được với form khác.
+// Mỗi hàm phải tự chứa toàn bộ vì được tiêm qua chrome.scripting.executeScript.
+
 // eslint-disable-next-line no-unused-vars
-function danBaiFill(data, map, autoSubmit) {
-  const out = { title: false, sapo: false, body: false, author: null, source: null, submit: null, notes: [] };
-  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
-  const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const area = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height; };
-
-  const PAT = {
-    title: /title|tieu[\s_-]?de|headline|\btit\b|\bten bai/,
-    sapo: /sapo|summary|excerpt|tom[\s_-]?tat|mo[\s_-]?ta|description|\blead\b|intro|trich[\s_-]?dan|gioi thieu/,
-    body: /content|body|noi[\s_-]?dung|detail|chi[\s_-]?tiet|fulltext/,
+function danBaiTools() {
+  const T = {};
+  T.sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  T.waitFor = async (fn, ms = 6000, step = 150) => {
+    const t0 = Date.now();
+    for (;;) {
+      let v = null;
+      try { v = fn(); } catch (e) { v = null; }
+      if (v) return v;
+      if (Date.now() - t0 > ms) return null;
+      await T.sleep(step);
+    }
   };
-  const NOT = /seo|meta|sub|phu|slug|url|keyword|tag|search|tim kiem|anh|image|caption|chu thich/;
+  T.norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+  T.visible = (el) => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  T.area = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height; };
+  T.text = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
 
-  function describe(el) {
+  // Nhãn của một ô: đoạn chữ ngắn đứng ngay trước ô đó (đi ngược lên tối đa 7 cấp).
+  T.labelOf = (el) => {
     const doc = el.ownerDocument;
-    const parts = [el.name, el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.getAttribute('data-field')];
-    if (el.id) { const l = doc.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) parts.push(l.textContent); }
-    const wrap = el.closest('label, .form-group, .form-item, .field, .form-row, .ant-form-item, .el-form-item, tr');
-    if (wrap) { const l = wrap.matches('label') ? wrap : wrap.querySelector('label, th, .label'); if (l) parts.push(l.textContent); }
-    return norm(parts.filter(Boolean).join(' | '));
-  }
+    if (el.id) { const l = doc.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l && T.text(l)) return T.text(l); }
+    const wrap = el.closest('label'); if (wrap && T.text(wrap)) return T.text(wrap);
+    let node = el;
+    for (let depth = 0; depth < 7 && node && node !== doc.body; depth++, node = node.parentElement) {
+      for (let sib = node.previousElementSibling; sib; sib = sib.previousElementSibling) {
+        if (!T.visible(sib)) continue;
+        if (sib.matches('input, textarea, select, iframe') || sib.querySelector('input, textarea, select, iframe, [contenteditable="true"]')) return '';
+        const t = T.text(sib);
+        if (t && t.length <= 80) return t.replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '');
+        if (t) return '';
+      }
+    }
+    return '';
+  };
 
-  function resolve(m) {
+  T.PAT = {
+    title: /tieu ?de|title|headline|ten bai/,
+    sapo: /sapo|tom ?tat|mo ?ta|summary|excerpt|description|trich dan|gioi thieu|\blead\b/,
+    body: /noi ?dung|content|body|chi ?tiet/,
+    author: /tac ?gia|but ?danh|author|nguoi viet/,
+    date: /ngay ?dang|ngay xuat ban|thoi gian dang|publish/,
+    category: /danh ?muc|chuyen ?muc|category/,
+    cover: /hinh anh dai dien|anh dai dien|hinh dai dien|anh bia|avatar|thumbnail|featured/,
+  };
+  T.NOT = {
+    title: /seo|meta|phu|sub|slug|anh|hinh|image|file|tap tin/,
+    sapo: /seo|meta|anh|hinh|image|file/,
+    body: /seo|meta|tom ?tat/,
+    author: /anh|hinh|image/,
+    date: /cap nhat|update|het han/,
+    category: /phu|sub/,
+    cover: /chu thich|hien thi|caption/,
+  };
+
+  T.score = (el, kind) => {
+    const lab = T.norm(T.labelOf(el));
+    if (lab && T.NOT[kind].test(lab)) return 0;
+    let s = 0;
+    if (lab) { const i = lab.search(T.PAT[kind]); s = i === 0 ? 4 : i > 0 ? 3 : 0; }
+    const attrs = T.norm([el.getAttribute('name'), el.id, el.getAttribute('aria-label'), el.getAttribute('data-field')].filter(Boolean).join(' '));
+    if (!s && T.PAT[kind].test(attrs) && !T.NOT[kind].test(attrs)) s = 2;
+    const ph = T.norm(el.getAttribute('placeholder'));
+    if (!s && !lab && T.PAT[kind].test(ph) && !/^(tim|loc|search|nhap tu khoa)/.test(ph)) s = 1;
+    if (s && /english|tieng anh|\(en\)/.test(lab)) s = 0.5;
+    return s;
+  };
+
+  T.findField = (kind, selector, allowReadonly) => {
+    let best = null; let bestScore = 0;
+    for (const el of document.querySelectorAll(selector || 'input[type=text], input:not([type]), textarea')) {
+      if (el.disabled || (!allowReadonly && el.readOnly) || !T.visible(el)) continue;
+      const s = T.score(el, kind);
+      if (s > bestScore) { best = el; bestScore = s; }
+    }
+    return best;
+  };
+
+  T.resolve = (m) => {
     if (!m || !m.selector) return null;
     let doc = document;
     if (m.frame) {
@@ -32,145 +90,258 @@ function danBaiFill(data, map, autoSubmit) {
       if (!doc) return null;
     }
     try { return doc.querySelector(m.selector); } catch (e) { return null; }
-  }
+  };
 
-  function setValue(el, value) {
-    const proto = el instanceof el.ownerDocument.defaultView.HTMLTextAreaElement
-      ? el.ownerDocument.defaultView.HTMLTextAreaElement.prototype
-      : el.ownerDocument.defaultView.HTMLInputElement.prototype;
+  T.setValue = (el, value, keepFocus) => {
+    const win = el.ownerDocument.defaultView;
+    const proto = el instanceof win.HTMLTextAreaElement ? win.HTMLTextAreaElement.prototype : win.HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value');
     el.focus();
     if (setter && setter.set) setter.set.call(el, value); else el.value = value;
     for (const type of ['input', 'change']) el.dispatchEvent(new Event(type, { bubbles: true }));
-    el.blur();
+    if (!keepFocus) el.blur();
+  };
+
+  T.tinyEditors = () => {
+    const t = window.tinymce;
+    if (!t) return [];
+    let list = [];
+    try { list = (t.get && t.get()) || []; } catch (e) { list = []; }
+    if (!Array.isArray(list) || !list.length) list = t.editors || [];
+    return [...list].filter((e) => e && e.getContainer && e.getContainer() && T.visible(e.getContainer()));
+  };
+
+  T.buttonOf = (el) => el && (el.closest('button, [role=button], a, .v-button') || el);
+  return T;
+}
+
+// eslint-disable-next-line no-unused-vars
+async function danBaiFill(data, map, opts) {
+  const T = danBaiTools();
+  const { sleep, waitFor, norm, visible, area, text, resolve, setValue } = T;
+  opts = opts || {};
+  map = map || {};
+  // true = đã điền, false = thử nhưng không được, null = không làm.
+  const out = { title: false, sapo: null, body: false, author: null, date: null, cover: null, category: null, submit: null, opened: false, notes: [] };
+  const escapeHtml = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+  const pressEscape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+
+  // ---- 0. Chưa mở form thì bấm nút «Tạo bài mới» (dấu +) ----
+  const findTitle = () => resolve(map.title) || T.findField('title');
+  let titleEl = findTitle();
+  if (!titleEl) {
+    const adds = [...document.querySelectorAll('[data-icon="add"], [data-icon="add_circle"]')]
+      .map(T.buttonOf).filter((b) => visible(b) && !b.closest('.tox, table, tr'));
+    const byText = [...document.querySelectorAll('button, a, [role=button]')]
+      .filter((b) => visible(b) && /^(tao bai|them bai|viet bai|tao moi|them moi|create)/.test(norm(text(b) || b.getAttribute('aria-label') || b.title)));
+    const add = adds.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0] || byText[0];
+    if (add) {
+      add.click();
+      out.opened = true;
+      titleEl = await waitFor(findTitle, 8000);
+      if (titleEl) await sleep(600);
+    }
+  }
+  if (!titleEl) {
+    out.notes.push('Không thấy form «Tạo bài viết». Hãy bấm nút + (Tạo bài mới) trên CMS rồi bấm lại.');
+    return out;
   }
 
-  // Trình soạn thảo gắn với một textarea (CKEditor 4, TinyMCE, Summernote).
-  function editorFor(el) {
-    const keys = [el.id, el.name].filter(Boolean);
-    if (window.CKEDITOR && CKEDITOR.instances) for (const k of keys) if (CKEDITOR.instances[k]) return (h) => CKEDITOR.instances[k].setData(h);
-    if (window.tinymce && tinymce.get) for (const k of keys) {
-      const ed = tinymce.get(k);
-      if (ed && ed.setContent) return (h) => { ed.setContent(h); ed.fire && ed.fire('change'); ed.save && ed.save(); };
-    }
-    const $ = window.jQuery;
-    if ($ && $.fn && $.fn.summernote && el.nextElementSibling && el.nextElementSibling.classList.contains('note-editor')) {
-      return (h) => $(el).summernote('code', h);
-    }
-    return null;
+  // ---- 1. Tiêu đề, tóm tắt, tác giả ----
+  function setAny(el, value) {
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') { setValue(el, value); return; }
+    el.focus();
+    el.innerHTML = escapeHtml(value);
+    el.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  }
+  setAny(titleEl, data.title); out.title = true;
+  for (const [kind, value] of [['sapo', data.sapo], ['author', data.author]]) {
+    if (!value) continue;
+    const el = resolve(map[kind]) || T.findField(kind);
+    if (el && el !== titleEl) { setAny(el, value); out[kind] = true; } else out[kind] = false;
   }
 
+  // ---- 2. Nội dung ----
+  function setTiny(ed, html) {
+    try { ed.focus(); } catch (e) { /* bỏ qua */ }
+    ed.setContent('');
+    try { ed.execCommand('mceInsertContent', false, html); } catch (e) { ed.setContent(html); }
+    if (!ed.getContent()) ed.setContent(html);
+    try { if (ed.setDirty) ed.setDirty(true); } catch (e) { /* bỏ qua */ }
+    const fire = ed.dispatch || ed.fire;
+    for (const ev of ['input', 'change']) { try { fire.call(ed, ev); } catch (e) { /* bỏ qua */ } }
+    try { if (ed.save) ed.save(); } catch (e) { /* bỏ qua */ }
+  }
   function setEditable(el, html) {
     const doc = el.ownerDocument;
     if (el.ckeditorInstance && el.ckeditorInstance.setData) { el.ckeditorInstance.setData(html); return; }
     const qc = el.classList.contains('ql-editor') && el.parentElement;
     const quill = qc && (qc.__quill || (window.Quill && Quill.find && Quill.find(qc)));
     if (quill && quill.clipboard) { quill.setText(''); quill.clipboard.dangerouslyPasteHTML(0, html); return; }
-    if (el.classList.contains('note-editable') && window.jQuery) {
-      const ta = el.closest('.note-editor') && el.closest('.note-editor').previousElementSibling;
-      if (ta && window.jQuery.fn.summernote) { window.jQuery(ta).summernote('code', html); return; }
-    }
     el.focus();
     let ok = false;
     try {
-      const sel = doc.getSelection();
-      const range = doc.createRange();
-      range.selectNodeContents(el);
-      sel.removeAllRanges(); sel.addRange(range);
+      const sel = doc.getSelection(); const range = doc.createRange();
+      range.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(range);
       ok = doc.execCommand('insertHTML', false, html);
     } catch (e) { ok = false; }
-    if (!ok || !el.textContent.trim()) {
-      el.innerHTML = html;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
+    if (!ok || !el.textContent.trim()) { el.innerHTML = html; el.dispatchEvent(new InputEvent('input', { bubbles: true })); }
   }
-
-  function setAny(el, value, isHtml) {
-    const tag = el.tagName;
-    if (tag === 'TEXTAREA' || tag === 'INPUT') {
-      const ed = editorFor(el);
-      if (ed) { ed(isHtml ? value : escapeHtml(value)); return; }
-      setValue(el, value);
-      return;
-    }
-    if (tag === 'IFRAME') {
-      const b = el.contentDocument && el.contentDocument.body;
-      if (b) setEditable(b, isHtml ? value : escapeHtml(value));
-      return;
-    }
-    setEditable(el, isHtml ? value : escapeHtml(value));
+  function byLabel(list, elOf) {
+    const scored = list.map((x) => ({ x, s: T.score(elOf(x), 'body'), a: area(elOf(x)) }));
+    scored.sort((p, q) => q.s - p.s || q.a - p.a);
+    return scored[0].x;
   }
-  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
-  function findInput(kind) {
-    const els = [...document.querySelectorAll('input[type=text], input:not([type]), textarea')]
-      .filter((el) => !el.disabled && !el.readOnly && (visible(el) || editorFor(el)));
-    const hits = els.filter((el) => { const d = describe(el); return PAT[kind].test(d) && !NOT.test(d); });
-    return hits[0] || null;
-  }
-
-  // ---- Tiêu đề, sapo ----
-  const used = new Set();
-  for (const kind of ['title', 'sapo']) {
-    const value = data[kind];
-    if (!value) { out[kind] = null; continue; }
-    const el = resolve(map[kind]) || findInput(kind);
-    if (el) { setAny(el, value, false); used.add(el); out[kind] = true; }
-  }
-
-  // ---- Nội dung ----
   function fillBody(html) {
+    const tiny = T.tinyEditors();
     const mapped = resolve(map.body);
-    if (mapped) { setAny(mapped, html, true); return true; }
-
-    const pick = (list, nameOf, sizeOf) => {
-      const ok = list.filter((x) => !PAT.sapo.test(norm(nameOf(x))) || PAT.body.test(norm(nameOf(x))));
-      const pool = ok.length ? ok : list;
-      return pool.find((x) => PAT.body.test(norm(nameOf(x)))) || pool.sort((a, b) => sizeOf(b) - sizeOf(a))[0];
-    };
-
-    if (window.CKEDITOR && CKEDITOR.instances && Object.keys(CKEDITOR.instances).length) {
-      const ed = pick(Object.values(CKEDITOR.instances), (e) => e.name, (e) => (e.container && e.container.$ ? area(e.container.$) : 0));
-      ed.setData(html); return true;
+    if (mapped) {
+      const ed = tiny.find((e) => { try { return e.getDoc() === mapped.ownerDocument || e.getElement() === mapped || e.getContainer().contains(mapped); } catch (x) { return false; } });
+      if (ed) { setTiny(ed, html); return true; }
+      if (mapped.tagName === 'TEXTAREA' || mapped.tagName === 'INPUT') {
+        const ck = window.CKEDITOR && CKEDITOR.instances && (CKEDITOR.instances[mapped.id] || CKEDITOR.instances[mapped.name]);
+        if (ck) ck.setData(html); else setValue(mapped, html);
+      } else setEditable(mapped.tagName === 'IFRAME' ? mapped.contentDocument.body : mapped, html);
+      return true;
     }
-    if (window.tinymce) {
-      const list = (tinymce.get && Array.isArray(tinymce.get()) ? tinymce.get() : tinymce.editors) || [];
-      if (list.length) {
-        const ed = pick([...list], (e) => e.id, (e) => (e.getContainer && e.getContainer() ? area(e.getContainer()) : 0));
-        ed.setContent(html); ed.fire && ed.fire('change'); ed.save && ed.save(); return true;
-      }
+    if (tiny.length) { setTiny(byLabel(tiny, (e) => e.getContainer()), html); return true; }
+    if (window.CKEDITOR && CKEDITOR.instances && Object.keys(CKEDITOR.instances).length) {
+      const list = Object.values(CKEDITOR.instances).filter((e) => e.container && e.container.$);
+      if (list.length) { byLabel(list, (e) => e.container.$).setData(html); return true; }
     }
     const editables = [...document.querySelectorAll('.ck-editor__editable, .ql-editor, .note-editable, .fr-element, .ProseMirror, [contenteditable="true"], [contenteditable=""]')]
-      .filter((el) => visible(el) && !used.has(el) && !el.parentElement.closest('[contenteditable="true"], [contenteditable=""]'));
-    if (editables.length) {
-      setEditable(editables.sort((a, b) => area(b) - area(a))[0], html); return true;
-    }
+      .filter((el) => visible(el) && el !== titleEl && !el.parentElement.closest('[contenteditable="true"], [contenteditable=""]'));
+    if (editables.length) { setEditable(byLabel(editables, (e) => e), html); return true; }
     const frames = [...document.querySelectorAll('iframe')].filter((f) => {
       try { const d = f.contentDocument; return d && d.body && visible(f) && (d.designMode === 'on' || d.body.isContentEditable); } catch (e) { return false; }
     });
-    if (frames.length) {
-      setEditable(frames.sort((a, b) => area(b) - area(a))[0].contentDocument.body, html); return true;
-    }
-    const ta = [...document.querySelectorAll('textarea')]
-      .filter((el) => visible(el) && !used.has(el) && !el.disabled && !el.readOnly)
-      .filter((el) => PAT.body.test(describe(el)))[0];
+    if (frames.length) { setEditable(byLabel(frames, (f) => f).contentDocument.body, html); return true; }
+    const ta = T.findField('body', 'textarea');
     if (ta) { setValue(ta, html); return true; }
     return false;
   }
-  try { out.body = fillBody(data.html); } catch (e) { out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
+  try {
+    // Trình soạn thảo có thể khởi tạo chậm hơn form một nhịp.
+    if (!resolve(map.body)) await waitFor(() => T.tinyEditors().length || document.querySelector('[contenteditable="true"], .ck-editor__editable'), 3000);
+    out.body = fillBody(data.html);
+  } catch (e) { out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
-  // ---- Tác giả, nguồn: chỉ điền khi đã chỉ định ô ----
-  for (const [kind, value] of [['author', data.author], ['source', data.site]]) {
-    const el = resolve(map[kind]);
-    if (el && value) { setAny(el, value, false); out[kind] = true; }
+  // ---- 3. Ngày đăng = bây giờ ----
+  async function setDateNow() {
+    const el = resolve(map.date) || T.findField('date', 'input', true);
+    if (!el) return false;
+    if (el.value) return true;
+    if (el.type === 'datetime-local' || el.type === 'date') {
+      const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
+      setValue(el, el.type === 'date' ? d.slice(0, 10) : d.slice(0, 16));
+      return true;
+    }
+    el.click();
+    const cal = await waitFor(() => [...document.querySelectorAll('.flatpickr-calendar')].find(visible), 3000);
+    let ok = false;
+    if (cal) {
+      const hosts = [cal.parentElement, cal.previousElementSibling, ...document.querySelectorAll('.v-date-picker, .flatpickr-input')];
+      const host = hosts.find((h) => h && h._flatpickr && h._flatpickr.calendarContainer === cal);
+      if (host) { host._flatpickr.setDate(new Date(), true); ok = true; }
+    }
+    if (!ok) {
+      const btn = [...document.querySelectorAll('button, a')].filter(visible)
+        .find((b) => /to-now|set-now|today-btn/i.test(b.className) || /^(set to now|dat ve bay gio|dat thanh bay gio|bay gio|hien tai)/.test(norm(text(b))));
+      if (btn) { btn.click(); ok = true; }
+    }
+    await sleep(300);
+    pressEscape();
+    await sleep(200);
+    if (cal && visible(cal)) { el.click(); await sleep(200); }
+    return ok || !!el.value;
   }
+  if (opts.setDate) { try { out.date = await setDateNow(); } catch (e) { out.date = false; } }
 
-  // ---- Nút gửi duyệt ----
-  if (autoSubmit) {
+  // ---- 4. Ảnh đại diện: dùng chức năng «nhập từ URL» của CMS ----
+  async function importCover(url) {
+    const links = [...document.querySelectorAll('[data-icon="link"], [data-icon="insert_link"]')]
+      .filter((i) => !i.closest('.tox')).map(T.buttonOf).filter(visible);
+    const btn = links.find((b) => { const l = norm(T.labelOf(b)); return T.PAT.cover.test(l) && !T.NOT.cover.test(l); });
+    if (!btn) return null; // đã có ảnh, hoặc form không có nút nhập từ URL
+    const before = new Set(document.querySelectorAll('input'));
+    btn.click();
+    const input = await waitFor(() => [...document.querySelectorAll('input')].find((i) => !before.has(i) && visible(i) && !i.readOnly && i.type !== 'file'), 4000);
+    if (!input) return false;
+    setValue(input, url, true);
+    await sleep(300);
+    const box = input.closest('.v-card, [role=dialog], .v-dialog, .dialog, .modal') || input.parentElement.parentElement.parentElement;
+    const buttons = [...box.querySelectorAll('button')].filter(visible);
+    const go = buttons.filter((b) => !b.disabled).pop();
+    if (!go || buttons.length < 2 || go === buttons[0]) { if (buttons[0]) buttons[0].click(); return false; }
+    go.click();
+    const closed = await waitFor(() => !visible(input), 30000, 300);
+    if (!closed) { buttons[0].click(); return false; }
+    await sleep(400);
+    return !visible(btn);
+  }
+  if (opts.importCover && data.cover) { try { out.cover = await importCover(data.cover); } catch (e) { out.cover = false; } }
+
+  // ---- 5. Danh mục ----
+  async function setCategory(name) {
+    const want = norm(name);
+    const el = resolve(map.category) || T.findField('category', 'input', true) ||
+      [...document.querySelectorAll('.v-select, [role=combobox], select')].filter(visible).find((x) => T.score(x, 'category') >= 3);
+    if (!el) return false;
+    if (el.tagName === 'SELECT') {
+      const opt = [...el.options].find((o) => norm(o.textContent) === want);
+      if (!opt) return false;
+      el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+    if (norm(el.value || '') === want) return true;
+    el.click();
+    const sel = '.v-list-item, [role=option], [role=menuitem], li, tr, .table-row';
+    const pick = await waitFor(() => [...document.querySelectorAll(sel)].filter(visible).find((x) => {
+      const t = norm(text(x));
+      return t === want || [...x.children].some((c) => norm(text(c)) === want);
+    }), 5000);
+    if (!pick) { pressEscape(); return false; }
+    pick.click();
+    await sleep(300);
+    return true;
+  }
+  if (data.category) { try { out.category = await setCategory(data.category); } catch (e) { out.category = false; } }
+
+  // ---- 6. Bấm nút lưu / gửi duyệt (chỉ khi mọi bước đều thành công) ----
+  if (opts.autoSubmit) {
     const btn = resolve(map.submit);
+    const failed = ['title', 'sapo', 'body', 'author', 'date', 'cover', 'category'].some((k) => out[k] === false);
     if (!btn) out.submit = false;
-    else if (out.title && out.body) { setTimeout(() => btn.click(), 600); out.submit = true; }
-    else { out.submit = false; out.notes.push('Chưa điền đủ tiêu đề và nội dung nên không tự gửi duyệt.'); }
+    else if (failed) { out.submit = false; out.notes.push('Còn ô chưa điền được nên không tự bấm nút lưu.'); }
+    else { setTimeout(() => btn.click(), 800); out.submit = true; }
   }
   return out;
+}
+
+// Bản mô tả cấu trúc form (không kèm nội dung đã nhập) để gửi cho người phát triển khi tiện ích điền sai.
+// eslint-disable-next-line no-unused-vars
+function danBaiDiag() {
+  const T = danBaiTools();
+  const cls = (el) => (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).slice(0, 4).join('.');
+  const chain = (el) => { const p = []; for (let n = el, i = 0; n && n !== document.body && i < 4; n = n.parentElement, i++) p.push(n.tagName.toLowerCase() + (cls(n) ? '.' + cls(n) : '')); return p.join(' < '); };
+  const lines = ['URL: ' + location.origin + location.pathname];
+  const t = window.tinymce;
+  lines.push('tinymce: ' + (t ? (t.majorVersion + '.' + t.minorVersion) : 'không có') + ', CKEDITOR: ' + (window.CKEDITOR ? 'có' : 'không'));
+  T.tinyEditors().forEach((e) => lines.push('  editor ' + e.id + ' | nhãn: ' + T.labelOf(e.getContainer())));
+  lines.push('--- Ô nhập ---');
+  for (const el of document.querySelectorAll('input, textarea, select, iframe, [contenteditable="true"]')) {
+    if (!T.visible(el) || el.closest('.tox')) continue;
+    lines.push([el.tagName.toLowerCase() + (el.type ? '[' + el.type + ']' : ''), el.readOnly ? 'readonly' : '', 'nhãn: ' + T.labelOf(el),
+      'ph: ' + (el.getAttribute('placeholder') || ''), chain(el)].filter(Boolean).join(' | '));
+  }
+  lines.push('--- Nút có biểu tượng ---');
+  const icons = new Map();
+  for (const i of document.querySelectorAll('[data-icon]')) {
+    if (!T.visible(i) || i.closest('.tox')) continue;
+    const b = T.buttonOf(i); const key = i.getAttribute('data-icon');
+    if (b !== i && !icons.has(key)) icons.set(key, chain(b) + ' | nhãn: ' + T.labelOf(b));
+  }
+  icons.forEach((v, k) => lines.push(k + ' | ' + v));
+  lines.push('flatpickr: ' + document.querySelectorAll('.flatpickr-calendar').length);
+  return lines.join('\n').slice(0, 12000);
 }

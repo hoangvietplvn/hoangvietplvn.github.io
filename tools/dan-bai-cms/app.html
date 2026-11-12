@@ -24,15 +24,18 @@
       <textarea id="f-sapo" rows="3"></textarea>
     </label>
     <div class="cols">
-      <label>Tác giả
+      <label>Tác giả <span class="hint">(điền vào ô Tác giả trên CMS)</span>
         <input id="f-author" type="text">
       </label>
-      <label>Tên nguồn
-        <input id="f-site" type="text">
+      <label>Danh mục <span class="hint">(gõ đúng tên trên CMS; để trống thì tự chọn tay)</span>
+        <input id="f-category" type="text" placeholder="Ví dụ: Tin hoạt động">
       </label>
     </div>
-    <label class="check"><input id="f-credit" type="checkbox" checked> Thêm dòng ghi nguồn kèm link gốc ở cuối bài</label>
-    <p id="cover-row" class="hint" hidden>Ảnh đại diện của bài gốc: <a id="cover-link" target="_blank" rel="noopener"></a></p>
+    <label>Ảnh đại diện <span class="hint">(link ảnh; CMS sẽ tự tải về qua chức năng nhập từ URL)</span>
+      <input id="f-cover" type="url">
+    </label>
+    <label class="check"><input id="f-credit" type="checkbox"> Thêm dòng «Theo …» kèm link gốc ở cuối bài, tên nguồn:
+      <input id="f-site" type="text" class="inline"></label>
 
     <div class="label">Nội dung <span class="hint">(sửa trực tiếp được)</span></div>
     <div id="f-body" class="body" contenteditable="true"></div>
@@ -45,12 +48,16 @@
 
   <details id="settings">
     <summary>Thiết lập CMS</summary>
-    <label>Địa chỉ trang soạn bài mới của CMS
-      <input id="s-cms" type="url" placeholder="https://cms.phapluat.gov.vn/admin/">
+    <label>Địa chỉ trang quản lý bài viết của CMS
+      <input id="s-cms" type="url">
     </label>
-    <p class="hint">Tiện ích tự dò ô tiêu đề, sapo và nội dung. Nếu dò sai, hãy mở trang soạn bài trên CMS rồi bấm «Chỉ định» để chỉ đúng từng ô. Chỉ cần làm một lần.</p>
+    <label class="check"><input id="s-date" type="checkbox"> Tự đặt Ngày đăng là thời điểm hiện tại</label>
+    <label class="check"><input id="s-cover" type="checkbox"> Tự nhập Hình ảnh đại diện từ link ảnh của bài gốc</label>
+    <label class="check"><input id="s-submit" type="checkbox"> Tự bấm nút lưu sau khi điền <span class="hint">(cần chỉ định nút trước; chỉ bấm khi mọi ô đều điền được)</span></label>
+    <p class="hint">Tiện ích tự dò các ô theo nhãn trên form «Tạo bài viết». Nếu ô nào dò sai, mở form đó trên CMS rồi bấm «Chỉ định» để chỉ đúng ô. Chỉ cần làm một lần.</p>
     <table id="map-table"><tbody></tbody></table>
-    <label class="check"><input id="s-submit" type="checkbox"> Tự bấm nút gửi duyệt sau khi điền <span class="hint">(cần chỉ định nút trước)</span></label>
+    <p><button id="diag-btn" type="button">Sao chép thông tin chẩn đoán</button> <span id="diag-status" class="hint"></span></p>
+    <p class="hint">Khi tiện ích điền sai: mở form «Tạo bài viết» trên CMS, bấm nút trên rồi dán kết quả cho người hỗ trợ. Thông tin chỉ gồm cấu trúc form, không kèm nội dung bài.</p>
   </details>
 </main>
 <script src="lib/Readability.js"></script>

@@ -12,6 +12,7 @@ const KEEP = {
 const BLOCKS = 'P,H2,H3,H4,UL,OL,BLOCKQUOTE,FIGURE,TABLE,DIV,SECTION,ARTICLE';
 
 const safeUrl = (u) => /^https?:\/\//i.test(u || '');
+const absUrl = (u, base) => { try { const r = new URL(u, base).href; return safeUrl(r) ? r : ''; } catch (e) { return ''; } };
 const plain = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
 
 function cleanNode(node, doc) {
@@ -131,7 +132,7 @@ function parseArticle(html, url) {
     html: body.body.innerHTML.trim(),
     author: (art.byline || info.author || '').replace(/\s+/g, ' ').trim(),
     site: art.siteName || info.site || host,
-    cover: safeUrl(info.cover) ? info.cover : '',
+    cover: absUrl(info.cover, url),
     length: body.body.textContent.trim().length,
   };
 }
