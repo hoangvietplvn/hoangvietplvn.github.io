@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { marked } = require('marked');
+const yaml = require('js-yaml');
 
 const ROOT = __dirname;
 const OUT = path.join(ROOT, 'dist');
@@ -20,13 +21,13 @@ const isoDate = (d) => d.toISOString().slice(0, 10);
 function parseFile(file) {
   const raw = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
   const m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  const meta = {};
+  let meta = {};
   if (m) {
-    for (const line of m[1].split('\n')) {
-      const i = line.indexOf(':');
-      if (i < 1) continue;
-      meta[line.slice(0, i).trim()] = line.slice(i + 1).trim().replace(/^["']|["']$/g, '');
-    }
+    try { meta = yaml.load(m[1]) || {}; } catch (e) { console.warn(`! Lỗi phần khai báo đầu tệp ${path.basename(file)}: ${e.message}`); }
+  }
+  for (const k of Object.keys(meta)) {
+    const v = meta[k];
+    meta[k] = v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim();
   }
   return { meta, body: m ? m[2] : raw };
 }
@@ -73,21 +74,33 @@ function coverSvg(seed) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"><rect width="1600" height="900" fill="${bg}"/>${arcs}<circle cx="${cx.toFixed(0)}" cy="${cy.toFixed(0)}" r="${r.toFixed(0)}" fill="${a}"/><rect x="0" y="${horizon.toFixed(0)}" width="1600" height="${(900 - horizon).toFixed(0)}" fill="${bg}"/>${lines}</svg>`;
 }
 
+/* ---------- chuyên mục (categories/*.json) ---------- */
+const catDir = path.join(ROOT, 'categories');
+const catDefs = (fs.existsSync(catDir) ? fs.readdirSync(catDir).filter((f) => f.endsWith('.json')) : []).map((f) => {
+  let d = {};
+  try { d = JSON.parse(fs.readFileSync(path.join(catDir, f), 'utf8')); } catch (e) { console.warn(`! Lỗi tệp chuyên mục ${f}: ${e.message}`); }
+  const id = f.replace(/\.json$/, '');
+  return { id, name: String(d.name || id).trim(), order: Number.isFinite(+d.order) ? +d.order : 999, description: String(d.description || '') };
+}).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+// bài ghi mã chuyên mục (tên tệp) hoặc ghi thẳng tên đều được
+const catName = (v) => { const c = catDefs.find((x) => x.id === v || x.name === v); return c ? c.name : v; };
+
 /* ---------- nạp bài viết ---------- */
 const postsDir = path.join(ROOT, 'posts');
 let posts = fs.readdirSync(postsDir).filter((f) => /\.(md|html)$/.test(f)).map((f) => {
   const { meta, body } = parseFile(path.join(postsDir, f));
   const base = f.replace(/\.(md|html)$/, '');
   const dm = base.match(/^(\d{4}-\d{2}-\d{2})-(.+)$/);
-  const date = new Date((meta.date || (dm && dm[1]) || isoDate(new Date())) + 'T00:00:00Z');
-  const slug = meta.slug || (dm ? dm[2] : slugify(meta.title || base));
+  const dstr = String(meta.date || '').slice(0, 10);
+  const date = new Date((/^\d{4}-\d{2}-\d{2}$/.test(dstr) ? dstr : (dm && dm[1]) || isoDate(new Date())) + 'T00:00:00Z');
+  const slug = slugify(meta.slug || (dm ? dm[2] : meta.title || base)) || 'bai-viet';
   const html = f.endsWith('.html') ? body : marked.parse(body);
   const text = html.replace(/<[^>]+>/g, ' ');
   const words = text.split(/\s+/).filter(Boolean).length;
   return {
     slug, date, html,
     title: meta.title || base,
-    category: meta.category || 'Ghi chép',
+    category: catName(meta.category || 'Ghi chép'),
     excerpt: meta.excerpt || text.trim().slice(0, 170) + '…',
     author: meta.author || cfg.author,
     cover: meta.cover || '',
@@ -100,8 +113,16 @@ let posts = fs.readdirSync(postsDir).filter((f) => /\.(md|html)$/.test(f)).map((
   };
 }).filter((p) => !p.draft).sort((a, b) => b.date - a.date || a.slug.localeCompare(b.slug));
 
-const categories = [...new Set(posts.map((p) => p.category))];
+const categories = [...new Set([...catDefs.map((c) => c.name), ...posts.map((p) => p.category)])];
 const catUrl = (c) => `chuyen-muc/${slugify(c)}/`;
+
+/* Trang tĩnh (pages/*.md) — tự hiện trên thanh điều hướng */
+const pagesDir = path.join(ROOT, 'pages');
+const pageList = (fs.existsSync(pagesDir) ? fs.readdirSync(pagesDir).filter((x) => x.endsWith('.md')) : []).map((f) => {
+  const { meta: m, body } = parseFile(path.join(pagesDir, f));
+  const slug = slugify(f.replace(/\.md$/, '')) || 'trang';
+  return { slug, title: m.title || slug, excerpt: m.excerpt || '', body, url: `${slug}/` };
+}).filter((p) => !['luu-tru', 'bai-viet', 'chuyen-muc', 'admin', 'assets', 'images'].includes(p.slug));
 
 /* Mã phiên bản gắn vào đường dẫn CSS/JS để trình duyệt không dùng bản cũ đã lưu */
 const VER = require('crypto').createHash('md5')
@@ -111,7 +132,7 @@ const VER = require('crypto').createHash('md5')
 /* ---------- khung trang ---------- */
 function shell({ title, description, root, body, cls = '', image = '', canonical = '' }) {
   const full = title ? `${title} — ${cfg.title}` : `${cfg.title} — ${cfg.tagline}`;
-  const nav = [['', 'Trang nhất'], ...categories.map((c) => [catUrl(c), c]), ['luu-tru/', 'Lưu trữ'], ['gioi-thieu/', 'Giới thiệu']]
+  const nav = [['', 'Trang nhất'], ...categories.map((c) => [catUrl(c), c]), ['luu-tru/', 'Lưu trữ'], ...pageList.map((p) => [p.url, p.title])]
     .map(([u, l]) => `<a href="${root}${u}">${esc(l)}</a>`).join('');
   return `<!doctype html>
 <html lang="${cfg.language}">
@@ -153,7 +174,7 @@ ${body}
   <div class="wrap">
     <a class="logo small" href="${root}">${esc(cfg.title)}</a>
     <p>© ${new Date().getUTCFullYear()} ${esc(cfg.author)}. Mọi bài viết thuộc bản quyền của tác giả.</p>
-    <p class="footnav"><a href="${root}luu-tru/">Lưu trữ</a> · <a href="${root}gioi-thieu/">Giới thiệu</a> · <a href="${root}feed.xml">RSS</a></p>
+    <p class="footnav"><a href="${root}luu-tru/">Lưu trữ</a> · ${pageList.map((p) => `<a href="${root}${p.url}">${esc(p.title)}</a> · `).join('')}<a href="${root}feed.xml">RSS</a> · <a href="${root}admin/" rel="nofollow">Quản trị</a></p>
   </div>
 </footer>
 <script src="${root}assets/main.js?v=${VER}" defer></script>
@@ -182,6 +203,18 @@ fs.rmSync(OUT, { recursive: true, force: true });
 copyDir(path.join(ROOT, 'static'), OUT);
 write('assets/styles.css', fs.readFileSync(path.join(ROOT, 'src/styles.css')));
 write('assets/main.js', fs.readFileSync(path.join(ROOT, 'src/main.js')));
+// Trang quản trị: chép bộ mã CMS vào dist/admin/
+{
+  const cms = path.join(ROOT, 'node_modules/@sveltia/cms/dist');
+  if (fs.existsSync(cms)) {
+    write('admin/sveltia-cms.js', fs.readFileSync(path.join(cms, 'sveltia-cms.js')));
+    const walk = (dir, rel) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(path.join(dir, e.name), `${rel}/${e.name}`);
+      else if (!e.name.endsWith('.map')) write(`admin/${rel}/${e.name}`, fs.readFileSync(path.join(dir, e.name)));
+    } };
+    if (fs.existsSync(path.join(cms, 'chunks'))) walk(path.join(cms, 'chunks'), 'chunks');
+  }
+}
 write('assets/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#16130f"/><text x="32" y="46" font-family="Georgia,serif" font-size="40" font-weight="700" text-anchor="middle" fill="#f6f1e7">${esc(cfg.title.trim()[0] || 'B')}</text></svg>`);
 for (const p of posts) if (!p.cover) write(`assets/covers/${p.slug}.svg`, coverSvg(p.slug));
 
@@ -249,8 +282,8 @@ ${article}
 // Chuyên mục
 for (const c of categories) {
   const list = posts.filter((p) => p.category === c);
-  const body = `<section class="wrap"><header class="page-head"><p class="kicker">Chuyên mục</p><h1>${esc(c)}</h1><p class="count">${list.length} bài viết</p></header>
-<div class="grid">${list.map((p) => card(p, '../../')).join('\n')}</div></section>`;
+  const body = `<section class="wrap"><header class="page-head"><p class="kicker">Chuyên mục</p><h1>${esc(c)}</h1><p class="count">${esc((catDefs.find((x) => x.name === c) || {}).description || `${list.length} bài viết`)}</p></header>
+${list.length ? `<div class="grid">${list.map((p) => card(p, '../../')).join('\n')}</div>` : '<p class="empty">Chưa có bài viết trong chuyên mục này.</p>'}</section>`;
   write(`${catUrl(c)}index.html`, shell({ title: c, root: '../../', body, cls: 'category', canonical: catUrl(c) }));
 }
 
@@ -267,13 +300,10 @@ ${posts.filter((p) => p.date.getUTCFullYear() === y).map((p) => `<li data-item><
 }
 
 // Trang tĩnh (pages/*.md)
-const pagesDir = path.join(ROOT, 'pages');
-for (const f of fs.existsSync(pagesDir) ? fs.readdirSync(pagesDir).filter((x) => x.endsWith('.md')) : []) {
-  const { meta: m, body: md } = parseFile(path.join(pagesDir, f));
-  const slug = f.replace(/\.md$/, '');
-  const body = `<article class="post-article"><header class="post-head"><h1>${esc(m.title || slug)}</h1>${m.excerpt ? `<p class="standfirst">${esc(m.excerpt)}</p>` : ''}</header>
-<div class="prose nodrop">${relativize(marked.parse(md), '../')}</div></article>`;
-  write(`${slug}/index.html`, shell({ title: m.title || slug, root: '../', body, cls: 'page', canonical: `${slug}/` }));
+for (const pg of pageList) {
+  const body = `<article class="post-article"><header class="post-head"><h1>${esc(pg.title)}</h1>${pg.excerpt ? `<p class="standfirst">${esc(pg.excerpt)}</p>` : ''}</header>
+<div class="prose nodrop">${relativize(marked.parse(pg.body), '../')}</div></article>`;
+  write(`${pg.url}index.html`, shell({ title: pg.title, root: '../', body, cls: 'page', canonical: pg.url }));
 }
 
 // 404, RSS, sitemap, CNAME
@@ -286,7 +316,7 @@ ${posts.slice(0, 30).map((p) => `<item><title>${esc(p.title)}</title><link>${bas
 </channel></rss>`);
 write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${['', 'luu-tru/', 'gioi-thieu/', ...posts.map((p) => p.url)].map((u) => `<url><loc>${base}/${u}</loc></url>`).join('\n')}
+${['', 'luu-tru/', ...pageList.map((p) => p.url), ...categories.map((c) => catUrl(c)), ...posts.map((p) => p.url)].map((u) => `<url><loc>${base}/${u}</loc></url>`).join('\n')}
 </urlset>`);
 write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${base}/sitemap.xml\n`);
 if (cfg.domain) write('CNAME', cfg.domain + '\n');

@@ -12,5 +12,11 @@
   "dependencies": {
     "marked": "^12.0.2"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@sveltia/cms": "^0.263.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^5.5.0"
+  }
 }

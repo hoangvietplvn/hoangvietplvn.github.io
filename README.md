@@ -61,3 +61,12 @@ Chèn trực tiếp HTML vào bài:
 ## Bài long-form thiết kế riêng
 
 Bài cần giao diện riêng (ví dụ loạt bài tông đỏ, nền trống đồng) là một tệp `.html` trong `posts/` với `layout: custom` và `theme: trong-dong`. Phần CSS của chủ đề nằm cuối `src/styles.css`.
+
+## Trang quản trị (CMS)
+
+Mở `https://hoangvietplvn.github.io/admin/` và đăng nhập bằng mã truy cập (access token) của GitHub. Tại đây có thể viết/sửa/xoá bài, tải ảnh, thêm/đổi tên/sắp xếp chuyên mục, sửa trang tĩnh và thông tin chung của blog. Mỗi lần Lưu là một lần ghi vào kho; blog tự đăng lại sau khoảng nửa phút.
+
+- Cấu hình các ô nhập: `static/admin/config.yml`
+- Chuyên mục: mỗi tệp trong `categories/` là một chuyên mục (`name`, `order`, `description`)
+- Ảnh tải lên: `static/images/uploads/`
+- Bài long-form thiết kế riêng (tệp `.html`) không hiện trong trang quản trị.

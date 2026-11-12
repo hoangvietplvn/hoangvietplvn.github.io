@@ -1,0 +1,106 @@
+# Cấu hình trang quản trị (Sveltia CMS). Mỗi lần bấm Lưu trong trang quản trị,
+# nội dung được ghi thẳng vào kho GitHub và blog tự đăng lại sau khoảng nửa phút.
+backend:
+  name: github
+  repo: hoangvietplvn/hoangvietplvn.github.io
+  branch: main
+  auth_methods: [token]
+
+app_title: Quản trị blog
+site_url: https://hoangvietplvn.github.io
+media_folder: static/images/uploads
+public_folder: /images/uploads
+
+slug:
+  encoding: ascii
+  clean_accents: true
+
+collections:
+  - name: posts
+    label: Bài viết
+    label_singular: Bài viết
+    description: Các bài viết trên blog. Bật "Bản nháp" để lưu mà chưa đăng.
+    icon: article
+    folder: posts
+    extension: md
+    format: frontmatter
+    create: true
+    delete: true
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    summary: "{{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { name: title, label: Tiêu đề, widget: string }
+      - { name: date, label: Ngày đăng, widget: datetime, type: date, format: YYYY-MM-DD }
+      - name: category
+        label: Chuyên mục
+        widget: relation
+        collection: categories
+        value_field: "{{slug}}"
+        display_fields: [name]
+        search_fields: [name]
+      - { name: excerpt, label: Sapo (tóm tắt), widget: text, hint: Một hai câu hiện dưới tiêu đề và ngoài trang nhất. }
+      - { name: author, label: Tác giả, widget: string, required: false, hint: Bỏ trống để dùng tên tác giả mặc định của trang. }
+      - { name: cover, label: Ảnh bìa, widget: image, required: false, hint: Bỏ trống thì trang tự vẽ một ảnh bìa trừu tượng. }
+      - { name: cover_caption, label: Chú thích ảnh bìa, widget: string, required: false }
+      - name: layout
+        label: Kiểu trình bày
+        widget: select
+        default: article
+        options:
+          - { label: Bài thường, value: article }
+          - { label: Long-form (ảnh bìa tràn màn hình), value: longform }
+      - { name: draft, label: Bản nháp (chưa đăng), widget: boolean, default: false, required: false }
+      - { name: body, label: Nội dung, widget: markdown }
+
+  - name: categories
+    label: Chuyên mục
+    label_singular: Chuyên mục
+    description: Các chuyên mục trên thanh điều hướng. "Thứ tự" nhỏ hơn thì đứng trước.
+    icon: category
+    folder: categories
+    extension: json
+    format: json
+    create: true
+    delete: true
+    identifier_field: name
+    slug: "{{name}}"
+    summary: "{{name}}"
+    sortable_fields: [order, name]
+    fields:
+      - { name: name, label: Tên chuyên mục, widget: string }
+      - { name: order, label: Thứ tự, widget: number, value_type: int, default: 10 }
+      - { name: description, label: Mô tả, widget: string, required: false }
+
+  - name: pages
+    label: Trang tĩnh
+    label_singular: Trang
+    description: Các trang như Giới thiệu.
+    icon: description
+    folder: pages
+    extension: md
+    format: frontmatter
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    fields:
+      - { name: title, label: Tiêu đề, widget: string }
+      - { name: excerpt, label: Mô tả ngắn, widget: text, required: false }
+      - { name: body, label: Nội dung, widget: markdown }
+
+  - name: settings
+    label: Cài đặt trang
+    icon: settings
+    files:
+      - name: site
+        label: Thông tin chung
+        file: site.config.json
+        fields:
+          - { name: title, label: Tên blog, widget: string }
+          - { name: tagline, label: Khẩu hiệu, widget: string }
+          - { name: author, label: Tác giả mặc định, widget: string }
+          - { name: description, label: Mô tả trang, widget: text }
+          - { name: established, label: Năm bắt đầu, widget: string }
+          - { name: url, label: Địa chỉ trang, widget: string, hint: "Ví dụ https://hoangvietplvn.github.io" }
+          - { name: domain, label: Tên miền riêng, widget: string, required: false, hint: Chỉ điền khi đã mua tên miền riêng. }
+          - { name: language, label: Mã ngôn ngữ, widget: string, default: vi }

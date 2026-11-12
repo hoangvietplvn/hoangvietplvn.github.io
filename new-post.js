@@ -12,7 +12,7 @@ if (fs.existsSync(file)) { console.error('Bài đã tồn tại: ' + file); proc
 fs.writeFileSync(file, `---
 title: ${title}
 date: ${date}
-category: Ghi chép
+category: chinh-luan
 excerpt: Một hai câu tóm tắt (sapo) hiện dưới tiêu đề và ngoài trang nhất.
 layout: article
 draft: true
