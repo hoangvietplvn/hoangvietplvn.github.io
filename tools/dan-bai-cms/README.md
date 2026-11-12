@@ -10,6 +10,26 @@ Tiện ích cho Chrome/Edge/Cốc Cốc: dán link bài báo, tiện ích bóc t
 
 Cập nhật bản mới: chép đè thư mục cũ rồi bấm nút tải lại (mũi tên tròn) ở ô tiện ích trong `chrome://extensions`. Sau đó chỉ định lại ô Tiêu đề và Tóm tắt.
 
+## Dán link Google Docs
+
+Ô dán nhận cả link bài báo lẫn link Google Docs, ví dụ `https://docs.google.com/document/d/…/edit`.
+
+- Tài liệu phải được mở quyền: bấm **Chia sẻ** → **Bất kỳ ai có đường liên kết** (quyền Người xem), hoặc đăng nhập Google trên trình duyệt này bằng tài khoản có quyền xem.
+- Nên viết các dòng đầu tài liệu theo mẫu (không bắt buộc):
+
+  ```
+  Tiêu đề: …
+  Sapo: … (hoặc Tóm tắt: …)
+  Tác giả: …
+  Danh mục: Tin hoạt động
+  Ảnh đại diện: https://…/anh.jpg
+  Nội dung:
+  (nội dung bài từ đây trở xuống)
+  ```
+
+- Không có nhãn: đoạn đầu là tiêu đề, đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung.
+- Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại. Ảnh trong tài liệu được giữ đường dẫn; ảnh đại diện lấy từ dòng «Ảnh đại diện» hoặc ảnh đầu tiên.
+
 ## Dùng hằng ngày
 
 1. Đăng nhập CMS, mở trang quản lý bài viết (ví dụ mục «Chờ phê duyệt»).

@@ -151,4 +151,74 @@ async function fetchHtml(url) {
   return dec.decode(buf);
 }
 
-window.DanBai = { parseArticle, fetchHtml, sanitizeHtml };
+// ---------- Google Docs ----------
+// Đọc bản xuất HTML của tài liệu Google Docs. Không bắt buộc, nhưng nên viết như sau ở đầu tài liệu:
+//   Tiêu đề: …   Sapo: … (hoặc Tóm tắt: …)   Tác giả: …   Danh mục: …   Ảnh đại diện: <link ảnh>
+//   Nội dung:   (từ dòng này trở xuống là nội dung bài)
+// Không có nhãn thì: đoạn đầu là tiêu đề, đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung.
+function docFromHtml(html, url) {
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  // Chữ đậm / nghiêng: Google Docs đặt trong lớp CSS gắn vào span.
+  const bold = new Set(); const ital = new Set();
+  doc.querySelectorAll('style').forEach((st) => {
+    const re = /\.([\w-]+)\s*\{([^}]*)\}/g; let m;
+    while ((m = re.exec(st.textContent))) {
+      if (/font-weight\s*:\s*(700|800|900|bold)/i.test(m[2])) bold.add(m[1]);
+      if (/font-style\s*:\s*italic/i.test(m[2])) ital.add(m[1]);
+    }
+  });
+  const wrap = (el, tag) => { const w = doc.createElement(tag); el.replaceWith(w); w.appendChild(el); return w; };
+  doc.querySelectorAll('body span').forEach((sp) => {
+    const cls = [...sp.classList];
+    const b = cls.some((c) => bold.has(c)); const i = cls.some((c) => ital.has(c));
+    let node = sp;
+    if (i) node = wrap(node, 'em');
+    if (b) wrap(node, 'strong');
+  });
+
+  const items = [...doc.body.children].filter((el) => clean(el.textContent) || el.querySelector('img'));
+  const LABEL = { 'tieu de': 'title', 'sapo': 'sapo', 'tom tat': 'sapo', 'tac gia': 'author', 'danh muc': 'category', 'anh dai dien': 'cover', 'anh': 'cover', 'noi dung': 'start' };
+  const found = {}; const used = new Set(); let start = -1; let startRest = '';
+  items.forEach((el, idx) => {
+    if (start >= 0) return;
+    const m = /^([^:]{2,30}):\s*([\s\S]*)$/.exec(clean(el.textContent));
+    if (!m) return;
+    const key = LABEL[norm(m[1])];
+    if (!key) return;
+    used.add(idx);
+    if (key === 'start') { start = idx; startRest = m[2].trim(); return; }
+    found[key] = m[2].trim();
+  });
+
+  let bodyItems;
+  if (start >= 0) bodyItems = items.slice(start + 1);
+  else if (Object.keys(found).length) bodyItems = items.filter((_, idx) => !used.has(idx));
+  else {
+    found.title = items[0] ? clean(items[0].textContent) : '';
+    let k = 1;
+    const second = items[1];
+    if (second && !second.querySelector('img') && clean(second.textContent).length <= 400) { found.sapo = clean(second.textContent); k = 2; }
+    bodyItems = items.slice(k);
+  }
+
+  const holder = doc.createElement('div');
+  if (startRest) { const p = doc.createElement('p'); p.textContent = startRest; holder.appendChild(p); }
+  bodyItems.forEach((el) => holder.appendChild(el.cloneNode(true)));
+  const text = clean(holder.textContent);
+  if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
+
+  const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
+  const firstImg = holder.querySelector('img');
+  const cover = coverUrl || (firstImg && firstImg.getAttribute('src')) || '';
+  const title = clean(found.title) || clean(doc.title).replace(/\s*-\s*Google Docs$/i, '');
+  return {
+    url, title, sapo: clean(found.sapo || ''), html: sanitizeHtml(holder.innerHTML),
+    author: clean(found.author || ''), site: '', cover: /^https?:\/\//i.test(cover) ? cover : '',
+    category: clean(found.category || ''), length: text.length,
+  };
+};
+
+window.DanBai = { parseArticle, fetchHtml, sanitizeHtml, docFromHtml };

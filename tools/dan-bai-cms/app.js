@@ -146,7 +146,23 @@ async function htmlViaTab(url) {
   }
 }
 
+// Link Google Docs: tiện ích tải bản xuất HTML bằng phiên đăng nhập Google của trình duyệt (nếu có).
+const GDOC_RE = /docs\.google\.com\/document\/(?:u\/\d+\/)?d\/([\w-]+)/;
+const DOC_HELP = 'Không đọc được tài liệu Google Docs. Hãy mở tài liệu, bấm Chia sẻ, chọn «Bất kỳ ai có đường liên kết» (quyền Người xem), hoặc đăng nhập Google trên trình duyệt này bằng tài khoản có quyền xem tài liệu.';
+async function getGoogleDoc(id, url) {
+  let res;
+  try {
+    res = await fetch(`https://docs.google.com/document/d/${id}/export?format=html`, { credentials: 'include', redirect: 'follow' });
+  } catch (e) { throw new Error(DOC_HELP); }
+  if (!res.ok || /accounts\.google\.com/.test(res.url)) throw new Error(DOC_HELP);
+  const html = await res.text();
+  if (!/<body/i.test(html)) throw new Error(DOC_HELP);
+  return DanBai.docFromHtml(html, url);
+}
+
 async function getArticle(url) {
+  const g = GDOC_RE.exec(url);
+  if (g) return getGoogleDoc(g[1], url);
   let first = null; let err = null;
   try { first = DanBai.parseArticle(await DanBai.fetchHtml(url), url); } catch (e) { err = e; }
   if (first && first.length >= 400) return first;
@@ -171,6 +187,7 @@ $('fetch-form').addEventListener('submit', async (e) => {
     $('f-sapo').value = article.sapo;
     $('f-site').value = article.site;
     $('f-author').value = article.site ? 'Theo ' + article.site : article.author;
+    if (article.category) $('f-category').value = article.category;
     $('f-cover').value = article.cover;
     $('f-body').innerHTML = article.html; // đã làm sạch trong extract.js
     $('article').hidden = false;
