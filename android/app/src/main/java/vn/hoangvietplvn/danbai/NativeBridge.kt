@@ -12,10 +12,10 @@ import java.util.concurrent.Executors
 // Cầu nối cho trang giao diện (app.html). Mọi lệnh mạng chạy bằng mã gốc, nên không bị chặn truy cập chéo domain.
 class NativeBridge(private val activity: MainActivity) {
 
-    private val store = ImageStore(activity)
+    private val imageStore = ImageStore(activity)
 
     private val io = Executors.newCachedThreadPool()
-    private val store = ConcurrentHashMap<String, ByteArray>()
+    private val fetched = ConcurrentHashMap<String, ByteArray>()
     private var seq = 0
 
     // Tải một địa chỉ (link Google Docs, bài báo, ảnh). Kết quả để lại trong bộ nhớ, giao diện đọc theo từng phần.
@@ -33,7 +33,7 @@ class NativeBridge(private val activity: MainActivity) {
                 val stream = if (code >= 400) conn.errorStream else conn.inputStream
                 val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
                 val key = synchronized(this) { "b" + (++seq) }
-                store[key] = bytes
+                fetched[key] = bytes
                 val payload = JSONObject()
                     .put("status", code)
                     .put("url", conn.url.toString())
@@ -50,7 +50,7 @@ class NativeBridge(private val activity: MainActivity) {
     // Đọc một đoạn của kết quả tải (dạng base64), gọi từ giao diện.
     @JavascriptInterface
     fun getChunk(key: String, offset: Int, length: Int): String {
-        val bytes = store[key] ?: return ""
+        val bytes = fetched[key] ?: return ""
         val end = minOf(bytes.size, offset + length)
         if (offset >= end) return ""
         return Base64.encodeToString(bytes, offset, end - offset, Base64.NO_WRAP)
@@ -58,7 +58,7 @@ class NativeBridge(private val activity: MainActivity) {
 
     @JavascriptInterface
     fun release(key: String) {
-        store.remove(key)
+        fetched.remove(key)
     }
 
     // Hiện màn hình CMS (tải trang nếu chưa tải).
@@ -75,25 +75,25 @@ class NativeBridge(private val activity: MainActivity) {
 
     // ---- Kho ảnh ----
     @JavascriptInterface
-    fun storeList(): String = store.list()
+    fun storeList(): String = imageStore.list()
 
     @JavascriptInterface
-    fun storeAdd(name: String, mime: String, b64: String, source: String): String = store.add(name, mime, b64, source)
+    fun storeAdd(name: String, mime: String, b64: String, source: String): String = imageStore.add(name, mime, b64, source)
 
     @JavascriptInterface
-    fun storeSize(id: String): Int = store.size(id)
+    fun storeSize(id: String): Int = imageStore.size(id)
 
     @JavascriptInterface
-    fun storeGetChunk(id: String, offset: Int, length: Int): String = store.chunk(id, offset, length)
+    fun storeGetChunk(id: String, offset: Int, length: Int): String = imageStore.chunk(id, offset, length)
 
     @JavascriptInterface
     fun storeDelete(id: String) {
-        store.delete(id)
+        imageStore.delete(id)
     }
 
     @JavascriptInterface
     fun storeClear() {
-        store.clear()
+        imageStore.clear()
     }
 
     // Hiện thông báo điền CMS trên thanh của màn hình CMS.
