@@ -19,7 +19,7 @@ function danBaiTools() {
   T.norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
   T.visible = (el) => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   T.area = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height; };
-  T.text = (el) => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
+  T.text = (el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
   T.clean = (t) => (t || '').replace(/\s+/g, ' ').replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '').trim();
 
   // Tên ô trên form Directus: nút .field-name (hoặc .field-label nếu không có).
@@ -63,23 +63,39 @@ function danBaiTools() {
     return best;
   };
 
-  // Phần tử nhập liệu bên trong khối .field.
+  // Phần tử nhập liệu bên trong khối .field (ô input, textarea, file...).
   T.controlIn = (f, kind) => {
     if (kind === 'cover') return f.querySelector('input[type=file]');
     if (kind === 'body') return f.querySelector('textarea, iframe, [contenteditable="true"]');
-    if (kind === 'date' || kind === 'category') return f.querySelector('.interface') || f;
     return f.querySelector('input:not([type=file]):not([type=hidden]), textarea, [contenteditable="true"]');
   };
 
-  T.resolveField = (kind, m) => {
-    const f = T.fieldFor(kind, m);
-    if (f) return T.controlIn(f, kind);
-    // Dự phòng cho bộ chọn cũ (không có tên): chỉ nhận ô đang hiển thị.
-    if (m && m.selector && !m.label) { const el = T.resolve(m); if (el && T.visible(el)) return el; }
-    return null;
+  // Nút thật để mở lịch / hộp chọn: Directus đặt trong button.v-list-item bên trong .interface.
+  // Bấm vào vùng bao ngoài (.interface) sẽ không mở gì.
+  T.clickIn = (f) => {
+    const pool = [...f.querySelectorAll('button, [role=button], .v-input, input, .interface')]
+      .filter((x) => !x.closest('.field-label') && T.visible(x));
+    const el = pool.find((x) => x.matches('button.v-list-item')) || pool.find((x) => x.matches('button')) || pool[0] || f;
+    el.scrollIntoView({ block: 'center' });
+    const win = el.ownerDocument.defaultView;
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) {
+      const Ev = type.startsWith('pointer') ? win.PointerEvent : win.MouseEvent;
+      el.dispatchEvent(new Ev(type, { bubbles: true, cancelable: true, view: win }));
+    }
+    el.click();
+    return el;
   };
 
-  // Nhãn của một ô không nằm trong .field (dùng cho ô ngoài form Directus).
+  // Gõ chữ vào ô như người dùng (chọn hết rồi chèn) để CMS ghi nhận giá trị; không được thì gán trực tiếp.
+  T.setText = (el, value) => {
+    const doc = el.ownerDocument;
+    el.focus();
+    try { el.select(); } catch (e) { /* ô không hỗ trợ chọn */ }
+    try { doc.execCommand('insertText', false, value); } catch (e) { /* bỏ qua */ }
+    if ((el.value || '').trim() !== value.trim()) T.setValue(el, value, true);
+    return (el.value || '').trim() === value.trim();
+  };
+
   T.labelOf = (el) => {
     const doc = el.ownerDocument;
     const f = el.closest('.field');
@@ -126,56 +142,46 @@ function danBaiTools() {
 // eslint-disable-next-line no-unused-vars
 async function danBaiFill(data, map, opts) {
   const T = danBaiTools();
-  const { sleep, waitFor, norm, visible, area, text, setValue } = T;
+  const { sleep, waitFor, norm, visible, area, text } = T;
   opts = opts || {};
   map = map || {};
-  // true = đã điền, false = thử nhưng không được, null = không làm.
-  const out = { title: false, sapo: null, body: false, author: null, date: null, cover: null, category: null, submit: null, opened: false, notes: [] };
-  const escapeHtml = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-  const pressEscape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+  // true = đã điền và kiểm tra lại được, false = thử nhưng không được, null = không làm.
+  const out = { title: null, sapo: null, body: null, author: null, date: null, cover: null, category: null, submit: null, opened: false, notes: [] };
+  const fieldEl = (kind) => T.fieldFor(kind, map[kind]);
+  const findBy = (re) => [...document.querySelectorAll('a, button, span, div')]
+    .filter((e) => visible(e) && re.test(norm(text(e))) && e.children.length <= 2)
+    .sort((a, b) => area(a) - area(b))[0] || null;
   const clickOutside = () => {
     const spot = document.querySelector('.drawer h2, .drawer h1, h2, h1') || document.body;
     for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) spot.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
   };
-  const findBy = (re) => [...document.querySelectorAll('a, button, span, div')]
-    .filter((e) => visible(e) && re.test(norm(text(e))) && e.children.length <= 2)
-    .sort((a, b) => area(a) - area(b))[0] || null;
+  const setTextKind = (kind, value) => {
+    const f = fieldEl(kind);
+    if (!f) return null;
+    const el = T.controlIn(f, kind);
+    if (!el) return false;
+    return T.setText(el, value);
+  };
 
-  // ---- 0. Chưa mở form thì bấm nút + (Tạo bài viết) ----
-  let titleEl = T.resolveField('title', map.title);
-  if (!titleEl) {
+  // ---- 0. Mở form «Tạo bài viết» nếu chưa mở ----
+  let tf = fieldEl('title');
+  if (!tf) {
     const adds = [...document.querySelectorAll('[data-icon="add"], [data-icon="add_circle"]')]
       .map(T.buttonOf).filter((b) => visible(b) && !b.closest('.tox, table, tr'));
     const byText = [...document.querySelectorAll('button, a, [role=button]')]
       .filter((b) => visible(b) && /^(tao bai|them bai|viet bai|tao moi|them moi|create)/.test(norm(text(b) || b.getAttribute('aria-label') || b.title)));
     const add = adds.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0] || byText[0];
-    if (add) {
-      add.click();
-      out.opened = true;
-      titleEl = await waitFor(() => T.resolveField('title', map.title), 8000);
-      if (titleEl) await sleep(600);
-    }
+    if (add) { add.click(); out.opened = true; }
+    tf = await waitFor(() => fieldEl('title'), 8000);
+    // Form tải dữ liệu nền sau khi mở; chờ cho ổn định rồi mới điền.
+    if (tf) await sleep(1200);
   }
-  if (!titleEl) {
+  if (!tf) {
     out.notes.push('Không thấy form «Tạo bài viết». Hãy bấm nút + (Tạo bài mới) trên CMS rồi bấm lại.');
     return out;
   }
 
-  // ---- 1. Tiêu đề, tóm tắt, tác giả ----
-  function setAny(el, value) {
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') { setValue(el, value); return; }
-    el.focus();
-    el.innerHTML = escapeHtml(value);
-    el.dispatchEvent(new InputEvent('input', { bubbles: true }));
-  }
-  setAny(titleEl, data.title); out.title = true;
-  for (const [kind, value] of [['sapo', data.sapo], ['author', data.author]]) {
-    if (!value) continue;
-    const el = T.resolveField(kind, map[kind]);
-    if (el && el !== titleEl) { setAny(el, value); out[kind] = true; } else out[kind] = false;
-  }
-
-  // ---- 2. Nội dung (TinyMCE) ----
+  // ---- 1. Nội dung (TinyMCE) ----
   function setTiny(ed, html) {
     try { ed.focus(); } catch (e) { /* bỏ qua */ }
     ed.setContent('');
@@ -198,7 +204,7 @@ async function danBaiFill(data, map, opts) {
     if (!ok || !el.textContent.trim()) { el.innerHTML = html; el.dispatchEvent(new InputEvent('input', { bubbles: true })); }
   }
   async function fillBody(html) {
-    const f = T.fieldFor('body', map.body);
+    const f = fieldEl('body');
     if (f) {
       await waitFor(() => T.tinyEditors().length || f.querySelector('[contenteditable="true"]'), 6000, 200);
       const inF = (e) => { try { return f.contains(e.getContainer()) || f.contains(e.getElement()); } catch (x) { return false; } };
@@ -207,53 +213,42 @@ async function danBaiFill(data, map, opts) {
       const ce = f.querySelector('[contenteditable="true"], [contenteditable=""]');
       if (ce) { setEditable(ce, html); return true; }
       const ta = f.querySelector('textarea');
-      if (ta) { setValue(ta, html); return true; }
+      if (ta) { T.setValue(ta, html); return true; }
       return false;
     }
     const tiny = T.tinyEditors();
     if (tiny.length) { setTiny(tiny[0], html); return true; }
     return false;
   }
-  try { out.body = await fillBody(data.html); } catch (e) { out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
-  // ---- 3. Ngày đăng = bây giờ (nút «Set to Now» trong lịch) ----
+  // ---- 2. Tác giả ----
+  if (data.author) {
+    try { out.author = setTextKind('author', data.author); } catch (e) { out.author = false; }
+    if (out.author === null) out.author = false;
+  }
+
+  // ---- 3. Ngày đăng = bây giờ: bấm ô ngày để mở lịch, rồi bấm «Set to Now» ----
   async function setDateNow() {
-    const f = T.fieldFor('date', map.date);
+    const f = fieldEl('date');
     if (!f) return false;
-    const has = () => { const inp = f.querySelector('input'); return (!!inp && !!inp.value) || /\d{1,2}\/\d{1,2}\/\d{4}/.test(text(f)); };
+    const DATE_RE = /\d{1,2}\/\d{1,2}\/\d{4}/;
+    const has = () => DATE_RE.test(text(f)) || [...f.querySelectorAll('input')].some((i) => DATE_RE.test(i.value || ''));
     if (has()) return true;
-    const native = f.querySelector('input[type=datetime-local], input[type=date]');
-    if (native) {
-      const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
-      setValue(native, native.type === 'date' ? d.slice(0, 10) : d.slice(0, 16));
-      return true;
-    }
-    T.controlIn(f, 'date').click();
-    const now = await waitFor(() => findBy(/^(set to now|dat ve bay gio|bay gio)$/), 3000);
-    if (!now) { out.notes.push('Ngày đăng: không thấy nút «Set to Now» trong lịch.'); pressEscape(); return false; }
+    T.clickIn(f);
+    const now = await waitFor(() => findBy(/^(set to now|dat ve bay gio|bay gio)$/), 4000);
+    if (!now) { out.notes.push('Ngày đăng: bấm ô ngày nhưng không thấy lịch có nút «Set to Now».'); return false; }
     now.click();
     await sleep(500);
-    if (!has()) {
-      // Lịch không ghi giá trị: gõ trực tiếp vào ô ngày giờ theo định dạng của CMS.
-      const inp = f.querySelector('input') || document.querySelector('.v-drawer input[type=text]');
-      if (inp) {
-        const d = new Date(); const p2 = (n) => String(n).padStart(2, '0');
-        const str = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
-        setValue(inp, str, true);
-        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-        await sleep(300);
-      }
-    }
-    if (!has()) out.notes.push('Ngày đăng: đã bấm «Set to Now» nhưng ô vẫn trống.');
     clickOutside();
-    await sleep(300);
+    await sleep(400);
+    if (!has()) out.notes.push('Ngày đăng: đã bấm «Set to Now» nhưng ô vẫn trống.');
     return has();
   }
   if (opts.setDate) { try { out.date = await setDateNow(); } catch (e) { out.date = false; } }
 
-  // ---- 4. Ảnh đại diện: tải ảnh bài gốc (đã đọc sẵn trong data.coverFile) rồi đẩy vào ô tải tệp ----
+  // ---- 4. Ảnh đại diện: đẩy ảnh đã tải của bài gốc vào ô tải tệp ----
   async function setCover(d) {
-    const f = T.fieldFor('cover', map.cover);
+    const f = fieldEl('cover');
     if (!f) return false;
     if (f.querySelector('img')) return true;
     const input = T.controlIn(f, 'cover');
@@ -274,7 +269,7 @@ async function danBaiFill(data, map, opts) {
     else out.cover = null;
   }
 
-  // ---- 5. Danh mục: mở hộp «Chọn Bản Ghi», chọn dòng có tên trùng, bấm dấu tích ----
+  // ---- 5. Danh mục: bấm ô danh mục, chọn dòng trong hộp «Chọn Bản Ghi», bấm dấu tích ----
   const findModal = () => [...document.querySelectorAll('div, section, article, aside, [role=dialog]')]
     .filter((e) => visible(e) && /chon ban ghi/.test(norm(text(e).slice(0, 200))) && e.querySelector('tr, .v-list-item, [role=option]'))
     .sort((a, b) => area(a) - area(b))[0] || null;
@@ -282,34 +277,51 @@ async function danBaiFill(data, map, opts) {
     .filter((r) => visible(r) && [...r.querySelectorAll('td, span, div, li')].some((c) => norm(text(c)) === want))
     .sort((a, b) => text(a).length - text(b).length)[0] || null;
   async function setCategory(name) {
-    const f = T.fieldFor('category', map.category);
+    const f = fieldEl('category');
     if (!f) return false;
     const want = norm(name);
-    const ifc = f.querySelector('.interface') || f;
-    if (norm(text(ifc)).includes(want)) return true;
-    ifc.click();
+    const itf = f.querySelector('.interface') || f;
+    if (norm(text(itf)).includes(want)) return true;
+    T.clickIn(f);
     const modal = await waitFor(findModal, 5000);
-    if (!modal) return false;
+    if (!modal) { out.notes.push('Danh mục: bấm ô danh mục nhưng không thấy hộp «Chọn Bản Ghi».'); return false; }
     const row = await waitFor(() => findRow(modal, want), 3000);
-    if (!row) { pressEscape(); return false; }
-    // Chọn dòng: bấm vào ô tròn ở cột đầu của dòng. Nút dấu tích ở đầu hộp chỉ bật sau khi đã chọn.
+    if (!row) { out.notes.push('Danh mục: không thấy dòng «' + name + '» trong hộp.'); return false; }
     const okBtn = () => [...modal.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop() || null;
-    const isOff = (b) => !b || b.disabled || /disabled/.test(String(b.className)) || b.getAttribute('aria-disabled') === 'true' || getComputedStyle(b).opacity < 1 || getComputedStyle(b).pointerEvents === 'none';
-    const circle = row.querySelector('input[type=radio], [role=radio], .radio, .v-radio, .checkbox, [role=checkbox]') || row.querySelector('td:first-child > *, td:first-child') || row;
+    const isOff = (b) => { if (!b) return true; const cs = getComputedStyle(b); return b.disabled || b.getAttribute('aria-disabled') === 'true' || cs.opacity < 1 || cs.pointerEvents === 'none'; };
+    // Chọn dòng: bấm ô tròn ở cột đầu. Dấu tích ở đầu hộp chỉ bật sau khi đã chọn.
+    const circle = row.querySelector('input[type=radio], [role=radio], .radio, .v-radio, [role=checkbox]') || row.querySelector('td:first-child > *') || row.querySelector('td:first-child') || row;
     circle.click();
-    await sleep(250);
-    if (isOff(okBtn())) { row.click(); await sleep(250); }
-    const ok = okBtn();
-    if (!ok || isOff(ok)) { out.notes.push('Danh mục: đã mở hộp «Chọn Bản Ghi» nhưng không chọn được dòng «' + name + '».'); pressEscape(); return false; }
-    ok.click();
-    const closed = await waitFor(() => !visible(modal), 4000, 200);
-    if (!closed) { out.notes.push('Danh mục: đã bấm dấu tích nhưng hộp chọn chưa đóng.'); return false; }
     await sleep(300);
-    return norm(text(ifc)).includes(want);
+    if (isOff(okBtn())) { row.click(); await sleep(300); }
+    if (isOff(okBtn())) { out.notes.push('Danh mục: đã chọn dòng nhưng dấu tích vẫn chưa bật.'); return false; }
+    okBtn().click();
+    const closed = await waitFor(() => !visible(modal), 4000, 200);
+    if (!closed) { out.notes.push('Danh mục: đã bấm dấu tích nhưng hộp chưa đóng.'); return false; }
+    await sleep(400);
+    return norm(text(itf)).includes(want);
   }
   if (data.category) { try { out.category = await setCategory(data.category); } catch (e) { out.category = false; } }
 
-  // ---- 6. Bấm nút lưu (chỉ khi mọi ô đều điền được) ----
+  // ---- 6. Tiêu đề, tóm tắt: điền sau cùng, rồi kiểm tra lại (form có thể xóa khi tải xong) ----
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [kind, value] of [['title', data.title], ['sapo', data.sapo]]) {
+      if (!value) continue;
+      const f = fieldEl(kind);
+      const el = f && T.controlIn(f, kind);
+      if (!el) { out[kind] = false; continue; }
+      if ((el.value || '').trim() === value.trim()) { out[kind] = true; continue; }
+      out[kind] = T.setText(el, value);
+    }
+    await sleep(700);
+  }
+  if (!out.title) out.notes.push('Tiêu đề: không điền và kiểm tra lại được.');
+  if (data.sapo && !out.sapo) out.notes.push('Tóm tắt: không điền và kiểm tra lại được.');
+
+  // ---- 7. Nội dung ----
+  try { out.body = await fillBody(data.html); } catch (e) { out.body = false; out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
+
+  // ---- 8. Bấm nút lưu (chỉ khi mọi ô đều điền được) ----
   if (opts.autoSubmit) {
     const btn = T.resolve(map.submit);
     const failed = ['title', 'sapo', 'body', 'author', 'date', 'cover', 'category'].some((k) => out[k] === false);
@@ -328,19 +340,13 @@ function danBaiDiag() {
   const chain = (el) => { const p = []; for (let n = el, i = 0; n && n !== document.body && i < 4; n = n.parentElement, i++) p.push(n.tagName.toLowerCase() + (cls(n) ? '.' + cls(n) : '')); return p.join(' < '); };
   const lines = ['URL: ' + location.origin + location.pathname];
   const t = window.tinymce;
-  lines.push('tinymce: ' + (t ? (t.majorVersion + '.' + t.minorVersion) : 'không có') + ', CKEDITOR: ' + (window.CKEDITOR ? 'có' : 'không'));
-  T.tinyEditors().forEach((e) => lines.push('  editor ' + e.id + ' | nhãn: ' + T.labelOf(e.getContainer())));
+  lines.push('tinymce: ' + (t ? (t.majorVersion + '.' + t.minorVersion) : 'không có'));
   lines.push('--- Các khối .field ---');
   for (const f of document.querySelectorAll('.field')) {
     if (!T.visible(f)) continue;
     const itf = f.querySelector('.interface');
     const kids = itf ? [...itf.querySelectorAll('input, textarea, button, iframe, .v-list-item')].slice(0, 5).map((k) => k.tagName.toLowerCase() + (k.type ? '[' + k.type + ']' : '') + (cls(k) ? '.' + cls(k) : '')).join(', ') : '';
     lines.push(T.fieldLabel(f) + ' | ' + cls(f) + ' | ' + kids);
-  }
-  lines.push('--- Ô nhập ngoài form ---');
-  for (const el of document.querySelectorAll('input, textarea, select, iframe')) {
-    if (!T.visible(el) || el.closest('.tox, .field')) continue;
-    lines.push([el.tagName.toLowerCase() + (el.type ? '[' + el.type + ']' : ''), el.readOnly ? 'readonly' : '', 'ph: ' + (el.getAttribute('placeholder') || ''), chain(el)].filter(Boolean).join(' | '));
   }
   lines.push('--- Nút có biểu tượng ---');
   const icons = new Map();

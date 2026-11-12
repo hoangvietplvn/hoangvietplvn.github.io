@@ -26,6 +26,7 @@ Dòng thông báo cạnh nút cho biết ô nào đã điền, ô nào chưa đi
 
 ## Thiết lập CMS
 
+- **Thao tác với lịch và danh mục**: tiện ích bấm vào nút ô Ngày đăng và ô Danh mục (như bạn bấm tay một lần), rồi chọn «Set to Now» hoặc dòng THD «Tin hoạt động».
 - **Chỉ định ô**: tiện ích tìm ô theo tên trên form (ví dụ «Tiêu đề (Tiếng Việt)»). Nếu ô nào không tìm thấy, mở form «Tạo bài viết», bấm **Chỉ định** ở dòng tương ứng rồi bấm vào đúng ô trên CMS. Bản 1.3.0 bỏ các chỉ định cũ vì chúng có thể trỏ nhầm; hãy chỉ định lại tiêu đề và tóm tắt một lần.
 - **Tự bấm nút lưu**: mặc định tắt. Muốn bật, chỉ định nút (Lưu hoặc Gửi phê duyệt) trước. Tiện ích chỉ bấm khi mọi ô đều điền được.
 - **Sao chép thông tin chẩn đoán**: khi tiện ích điền sai, mở form «Tạo bài viết», bấm nút này và gửi kết quả cho người hỗ trợ. Chỉ gồm cấu trúc form, không kèm nội dung bài.
