@@ -169,15 +169,33 @@ function blobToB64(blob) {
   });
 }
 
-// Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) để đưa vào CMS dưới dạng tệp.
-async function fetchImageB64(src) {
+// Giới hạn ảnh của CMS là 10MB; ảnh lớn hơn được nén lại (JPEG) xuống dưới 9MB, giữ kích thước đủ dùng cho bài báo.
+const MAX_IMG_BYTES = 9 * 1024 * 1024;
+async function shrinkImage(blob) {
+  const bmp = await createImageBitmap(blob);
+  for (const side of [2400, 1800, 1400]) {
+    for (const q of [0.88, 0.8, 0.7]) {
+      const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * k)); const h = Math.max(1, Math.round(bmp.height * k));
+      const c = new OffscreenCanvas(w, h);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(bmp, 0, 0, w, h);
+      const out = await c.convertToBlob({ type: 'image/jpeg', quality: q });
+      if (out.size <= MAX_IMG_BYTES) return out;
+    }
+  }
+  throw new Error('không nén được ảnh xuống dưới 9MB');
+}
+
+// Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) và chuẩn bị để đưa vào CMS.
+async function fetchImageFile(src) {
   const res = await fetch(src, { credentials: /drive\.google\.com/.test(src) ? 'include' : 'omit', redirect: 'follow' });
   if (!res.ok) throw new Error('máy chủ trả về ' + res.status);
-  const blob = await res.blob();
+  let blob = await res.blob();
   if (!/^image\//.test(blob.type)) throw new Error('không phải ảnh (có thể cần quyền xem trên Drive)');
-  if (blob.size > 10 * 1024 * 1024) throw new Error('ảnh lớn hơn 10MB');
-  const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-  return { b64: await blobToB64(blob), mime: blob.type, size: blob.size, ext };
+  if (blob.size > MAX_IMG_BYTES) blob = await shrinkImage(blob);
+  return { b64: await blobToB64(blob), mime: blob.type, ext: (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
 }
 
 // Thay mỗi ảnh trong bài bằng dấu [[ẢNH n]] để CMS chèn ảnh đúng vị trí đó sau.
@@ -196,12 +214,9 @@ function prepareDocImages(html) {
 
 async function fetchDocImages(items) {
   const ok = []; const fail = [];
-  let total = 0;
   for (const it of items) {
-    if (total > 30 * 1024 * 1024) { fail.push(`ảnh ${it.n} (vượt giới hạn tổng dung lượng)`); continue; }
     try {
-      const b = await fetchImageB64(it.src);
-      total += b.size;
+      const b = await fetchImageFile(it.src);
       ok.push({ n: it.n, b64: b.b64, mime: b.mime, name: `anh-trong-bai-${it.n}.${b.ext}` });
     } catch (e) { fail.push(`ảnh ${it.n} (${e.message})`); }
   }
@@ -272,19 +287,8 @@ function buildData() {
 
 // Tải ảnh đại diện của bài gốc về trình duyệt (tiện ích có quyền truy cập mọi trang), rồi đưa vào CMS dưới dạng tệp.
 async function fetchCover(url) {
-  const res = await fetch(url, { credentials: 'omit' });
-  if (!res.ok) throw new Error('máy chủ báo gốc trả về ' + res.status);
-  const blob = await res.blob();
-  if (!/^image\//.test(blob.type)) throw new Error('đường dẫn không phải ảnh');
-  if (blob.size > 10 * 1024 * 1024) throw new Error('ảnh lớn hơn 10MB');
-  const b64 = await new Promise((ok, bad) => {
-    const fr = new FileReader();
-    fr.onload = () => ok(String(fr.result).split(',')[1]);
-    fr.onerror = () => bad(fr.error);
-    fr.readAsDataURL(blob);
-  });
-  const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-  return { b64, mime: blob.type, name: 'anh-dai-dien.' + ext };
+  const f = await fetchImageFile(url);
+  return { b64: f.b64, mime: f.mime, name: 'anh-dai-dien.' + f.ext };
 }
 
 $('fill-btn').addEventListener('click', async () => {

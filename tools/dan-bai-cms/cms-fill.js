@@ -319,30 +319,74 @@ async function danBaiFill(data, map, opts) {
   // ---- 7. Nội dung ----
   try { out.body = await fillBody(data.html); } catch (e) { out.body = false; out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
-  // Ảnh trong bài: thay từng dấu [[ẢNH n]] bằng ảnh đã tải, qua nút chèn ảnh của trình soạn thảo, đúng vị trí dấu.
+  // Ảnh trong bài: thay từng dấu [[ẢNH n]] bằng ảnh đã tải, đúng vị trí dấu.
+  // Cách 1: dán tệp ảnh vào vị trí dấu (trình soạn thảo tự tải ảnh lên CMS, như khi bạn dán ảnh bằng Ctrl+V).
+  // Cách 2: dùng nút chèn ảnh của thanh công cụ và chọn tệp trong hộp đó.
+  // Chỉ tính là xong khi ảnh có địa chỉ thật trên CMS (không phải data: hay blob:).
   async function uploadBodyImages(list) {
     const res = { ok: 0, fail: [] };
     const f = fieldEl('body');
     const ed = f && T.tinyEditors().find((e) => { try { return f.contains(e.getContainer()); } catch (x) { return false; } });
     const btn = f && [...f.querySelectorAll('button, [role=button]')].filter(visible)
       .find((b) => /\bimage\b|hinh anh|chen anh/.test(norm(b.getAttribute('aria-label') || b.title || '')));
+    const isRemote = (src) => /^https?:\/\//i.test(src || '');
     const dlgFile = () => [...document.querySelectorAll('input[type=file]')].reverse().find((i) => i.closest('.tox-dialog, [role=dialog], .v-dialog, .v-card')) || null;
     const closeDialog = () => {
       const c = [...document.querySelectorAll('.tox-dialog button')].filter(visible).find((b) => /^(huy|cancel|dong|close)$/.test(norm(text(b))));
       if (c) c.click();
     };
+    const makeFile = (im) => {
+      const bin = atob(im.b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      return new File([u8], im.name, { type: im.mime || 'image/jpeg' });
+    };
     for (const im of list) {
       const marker = `[[ẢNH ${im.n}]]`;
-      if (!ed || !btn) { res.fail.push(`ảnh ${im.n} (không thấy trình soạn thảo hoặc nút chèn ảnh)`); continue; }
+      if (!ed) { res.fail.push(`ảnh ${im.n} (không thấy trình soạn thảo)`); continue; }
       const body = ed.getBody();
-      const walker = body.ownerDocument.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-      let hit = null; let node;
-      while ((node = walker.nextNode())) { const i = node.nodeValue.indexOf(marker); if (i >= 0) { hit = { node, i }; break; } }
+      const doc = body.ownerDocument;
+      const findMarker = () => {
+        const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) { const i = node.nodeValue.indexOf(marker); if (i >= 0) return { node, i }; }
+        return null;
+      };
+      const selectMarker = (hit) => {
+        const rng = ed.dom.createRng();
+        rng.setStart(hit.node, hit.i); rng.setEnd(hit.node, hit.i + marker.length);
+        ed.selection.setRng(rng); ed.focus();
+      };
+      // Sau khi chèn: nếu ảnh chưa lên CMS (data:/blob:) thì trả lại dấu tại chỗ đó; nếu xong thì xóa dấu còn sót.
+      // Sửa DOM trực tiếp không được trình soạn thảo ghi nhận; phải báo để nội dung lưu đúng.
+      const notify = () => { try { ed.fire('input'); ed.fire('change'); ed.save(); } catch (e) { /* bỏ qua */ } };
+      const restoreMarkerFrom = (srcSet) => {
+        [...body.querySelectorAll('img')].filter((i) => !srcSet.has(i.getAttribute('src')) && !isRemote(i.getAttribute('src')))
+          .forEach((i) => i.replaceWith(doc.createTextNode(marker)));
+        notify();
+      };
+      const remoteNew = (srcSet) => [...body.querySelectorAll('img')].find((i) => !srcSet.has(i.getAttribute('src')) && isRemote(i.getAttribute('src')));
+      const cleanMarker = () => { const h = findMarker(); if (h && h.node.nodeValue.includes(marker)) { h.node.nodeValue = h.node.nodeValue.replace(marker, ''); notify(); } };
+
+      // Cách 1: dán ảnh
+      let hit = findMarker();
       if (!hit) { res.fail.push(`ảnh ${im.n} (không thấy dấu ${marker} trong bài)`); continue; }
-      const rng = ed.dom.createRng();
-      rng.setStart(hit.node, hit.i); rng.setEnd(hit.node, hit.i + marker.length);
-      ed.selection.setRng(rng); ed.focus();
-      const before = body.querySelectorAll('img').length;
+      selectMarker(hit);
+      const before = new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
+      try {
+        const dt = new (ed.getWin().DataTransfer)();
+        dt.items.add(makeFile(im));
+        body.dispatchEvent(new (ed.getWin().ClipboardEvent)('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      } catch (e) { /* không tạo được sự kiện dán */ }
+      const done1 = await waitFor(() => remoteNew(before), 20000, 300);
+      if (done1) { cleanMarker(); res.ok++; continue; }
+      restoreMarkerFrom(before);
+
+      // Cách 2: nút chèn ảnh + ô chọn tệp
+      hit = findMarker();
+      if (!hit || !btn) { res.fail.push(`ảnh ${im.n} (dán ảnh không lên CMS và không thấy nút chèn ảnh)`); continue; }
+      selectMarker(hit);
+      const before2 = new Set([...body.querySelectorAll('img')].map((i) => i.getAttribute('src')));
       btn.click();
       let input = await waitFor(dlgFile, 3000);
       if (!input) {
@@ -350,21 +394,17 @@ async function danBaiFill(data, map, opts) {
         if (tab) { tab.click(); input = await waitFor(dlgFile, 3000); }
       }
       if (!input) { res.fail.push(`ảnh ${im.n} (không thấy ô chọn tệp trong hộp chèn ảnh)`); closeDialog(); continue; }
-      const bin = atob(im.b64);
-      const u8 = new Uint8Array(bin.length);
-      for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
-      const dt = new DataTransfer();
-      dt.items.add(new File([u8], im.name, { type: im.mime || 'image/jpeg' }));
-      input.files = dt.files;
+      const dt2 = new DataTransfer();
+      dt2.items.add(makeFile(im));
+      input.files = dt2.files;
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
       await sleep(2500);
       const primary = [...document.querySelectorAll('.tox-dialog__footer button, .tox-dialog button.tox-button--primary')].filter(visible).pop();
       if (primary) primary.click();
-      const added = await waitFor(() => body.querySelectorAll('img').length > before, 20000, 300);
-      if (!added) { res.fail.push(`ảnh ${im.n} (chưa thấy ảnh được chèn)`); closeDialog(); continue; }
-      if (hit.node.isConnected && hit.node.nodeValue.includes(marker)) hit.node.nodeValue = hit.node.nodeValue.replace(marker, '');
-      res.ok++;
+      const done2 = await waitFor(() => remoteNew(before2), 20000, 300);
+      if (!done2) { restoreMarkerFrom(before2); closeDialog(); res.fail.push(`ảnh ${im.n} (chưa lên được CMS)`); continue; }
+      cleanMarker(); res.ok++;
     }
     return res;
   }

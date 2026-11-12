@@ -266,9 +266,14 @@ function docFromHtml(html, url) {
   const text = clean(holder.textContent);
   if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
 
-  const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
+  // Ảnh đại diện: dòng «Ảnh đại diện:» nếu có; không có thì lấy ảnh đầu tiên của tài liệu (và bỏ khỏi nội dung).
   const coverUrl = ((found.cover || '').match(/https?:\/\/\S+/) || [])[0] || '';
-  const cover = coverUrl || images[0] || '';
+  let cover = coverUrl;
+  if (!cover) {
+    const first = holder.querySelector('img');
+    if (first && /^https?:\/\//i.test(first.getAttribute('src') || '')) { cover = first.getAttribute('src'); first.remove(); }
+  }
+  const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   return {
     url, title: clean(found.title), sapo: clean(sapo), html: sanitizeHtml(holder.innerHTML),
     author: clean(found.author || ''), site: '', cover, category: clean(found.category || ''),

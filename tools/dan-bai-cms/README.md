@@ -30,7 +30,7 @@ Cập nhật bản mới: chép đè thư mục cũ rồi bấm nút tải lại
 - Không có nhãn: tiêu đề là heading hoặc dòng đầu tài liệu (trong 3 đoạn đầu), đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung. Không tìm thấy thì lấy tên tài liệu. Thông báo sau khi lấy bài ghi rõ tiêu đề lấy từ đâu.
 - Tác giả: chỉ lấy từ dòng «Tác giả:». Không có dòng này thì ô Tác giả trên CMS được để trống (không giữ giá trị mặc định của CMS).
 - Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại.
-- Ảnh trong bài: tiện ích tải từng ảnh (ảnh chèn trong Doc, hoặc link Drive đứng riêng trong một đoạn), rồi chèn vào CMS đúng vị trí. Vị trí được đánh dấu tạm bằng `[[ẢNH n]]`. Ảnh nào không tải hoặc không chèn được thì dấu `[[ẢNH n]]` còn lại, bạn chèn tay rồi xóa dấu. Khi còn ảnh lỗi, tiện ích không tự bấm lưu.
+- Ảnh trong bài: tiện ích tải từng ảnh (ảnh chèn trong Doc, hoặc link Drive đứng riêng trong một đoạn). Ảnh lớn hơn 9MB được nén lại (JPEG) để CMS nhận, vì CMS giới hạn 10MB. Mỗi ảnh được dán vào đúng vị trí dấu `[[ẢNH n]]` để trình soạn thảo của CMS tải lên. Nếu cách dán không được, tiện ích thử nút chèn ảnh trên thanh công cụ. Ảnh nào vẫn không lên được thì dấu `[[ẢNH n]]` còn lại để bạn chèn tay rồi xóa dấu, và tiện ích không tự bấm lưu.
 - Ảnh đại diện lấy từ dòng «Ảnh đại diện» hoặc ảnh đầu tiên trong bài.
 
 ## Dùng hằng ngày
