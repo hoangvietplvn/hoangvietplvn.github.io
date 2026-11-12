@@ -1,10 +1,10 @@
 {
   "title": "Hoàng Việt",
-  "tagline": "Ghi chép · Suy ngẫm · Những câu chuyện dài",
+  "tagline": "Blog cá nhân",
   "author": "Hoàng Việt",
-  "description": "Blog cá nhân — nơi lưu giữ những bài viết, ghi chép và các câu chuyện dài.",
-  "domain": "",
+  "description": "Blog cá nhân",
+  "established": "2026",
   "url": "https://hoangvietplvn.github.io",
-  "language": "vi",
-  "established": "2026"
+  "domain": "",
+  "language": "vi"
 }
