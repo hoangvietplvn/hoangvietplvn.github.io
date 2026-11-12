@@ -70,3 +70,4 @@ Mở `https://hoangvietplvn.github.io/admin/` và đăng nhập bằng mã truy 
 - Chuyên mục: mỗi tệp trong `categories/` là một chuyên mục (`name`, `order`, `description`)
 - Ảnh tải lên: `static/images/uploads/`
 - Bài long-form thiết kế riêng (tệp `.html`) không hiện trong trang quản trị.
+- Trang nhất: mục "Trang nhất" trong trang quản trị ghi vào `homepage.json` (chế độ tự động, hoặc tự chọn bài chính, cột bên phải và lưới bài phía dưới).
