@@ -16,6 +16,46 @@ slug:
   clean_accents: true
 
 collections:
+  - name: home
+    label: Trang nhất
+    description: Chọn những bài hiện ra trang nhất. Bài không được chọn vẫn nằm trong chuyên mục và trang Lưu trữ.
+    icon: home
+    files:
+      - name: homepage
+        label: Bài trên trang nhất
+        file: homepage.json
+        fields:
+          - name: mode
+            label: Cách chọn bài
+            widget: select
+            default: auto
+            hint: Ở chế độ "Tự chọn", trang nhất chỉ hiện đúng các bài chọn bên dưới, theo đúng thứ tự sắp xếp.
+            options:
+              - { label: "Tự động — bài mới nhất lên đầu", value: auto }
+              - { label: "Tự chọn — chỉ hiện các bài chọn bên dưới", value: manual }
+          - name: lead
+            label: Bài chính (ảnh lớn đầu trang)
+            widget: select
+            required: false
+            hint: Bài vừa đăng sẽ có trong danh sách sau khoảng một phút; tải lại trang quản trị nếu chưa thấy.
+            options: __POST_OPTIONS__
+          - name: side
+            label: Cột bên phải
+            label_singular: bài
+            widget: list
+            required: false
+            hint: Nên chọn 2 đến 4 bài. Kéo thả để đổi thứ tự.
+            field: { name: post, label: Bài viết, widget: select, options: __POST_OPTIONS__ }
+          - { name: side_label, label: Tên cột bên phải, widget: string, default: Đáng đọc, required: false }
+          - name: more
+            label: Lưới bài phía dưới
+            label_singular: bài
+            widget: list
+            required: false
+            hint: Mỗi hàng ba bài. Kéo thả để đổi thứ tự.
+            field: { name: post, label: Bài viết, widget: select, options: __POST_OPTIONS__ }
+          - { name: more_label, label: Tên lưới bài phía dưới, widget: string, default: Mới đăng, required: false }
+
   - name: posts
     label: Bài viết
     label_singular: Bài viết

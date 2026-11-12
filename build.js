@@ -220,19 +220,33 @@ for (const p of posts) if (!p.cover) write(`assets/covers/${p.slug}.svg`, coverS
 
 // Trang nhất
 {
-  const [lead, ...rest] = posts;
-  const side = rest.slice(0, 3), more = rest.slice(3);
+  // homepage.json (sửa trong trang quản trị, mục "Trang nhất") quyết định bài nào hiện ở đây
+  let home = {};
+  try { home = JSON.parse(fs.readFileSync(path.join(ROOT, 'homepage.json'), 'utf8')); } catch (e) { /* không có tệp: chế độ tự động */ }
+  const bySlug = new Map(posts.map((p) => [p.slug, p]));
+  const pick = (v) => (Array.isArray(v) ? v : []).map((x) => bySlug.get(typeof x === 'string' ? x : x && x.post)).filter(Boolean);
+  let lead, side, more;
+  if (home.mode === 'manual') {
+    const seen = new Set();
+    const uniq = (list) => list.filter((p) => !seen.has(p.slug) && seen.add(p.slug));
+    const all = uniq([bySlug.get(home.lead), ...pick(home.side), ...pick(home.more)].filter(Boolean));
+    lead = bySlug.get(home.lead) || all[0];
+    seen.clear(); if (lead) seen.add(lead.slug);
+    side = uniq(pick(home.side)); more = uniq(pick(home.more));
+  }
+  if (!lead) { [lead] = posts; side = posts.slice(1, 4); more = posts.slice(4, 13); }
+  const sideLabel = home.side_label || 'Đáng đọc', moreLabel = home.more_label || 'Mới đăng';
   const body = !lead ? '<div class="wrap empty"><p>Chưa có bài viết nào.</p></div>' : `
 <section class="front wrap${side.length ? '' : ' front-solo'}">
   <div class="front-lead">${card(lead, '', { big: true })}</div>
   ${side.length ? `<aside class="front-side">
-    <h2 class="label">Đáng đọc</h2>
+    <h2 class="label">${esc(sideLabel)}</h2>
     ${side.map((p) => card(p, '', { image: false })).join('\n')}
   </aside>` : ''}
 </section>
 ${more.length ? `<section class="wrap">
-  <h2 class="label rule">Mới đăng</h2>
-  <div class="grid">${more.slice(0, 9).map((p) => card(p, '')).join('\n')}</div>
+  <h2 class="label rule">${esc(moreLabel)}</h2>
+  <div class="grid">${more.map((p) => card(p, '')).join('\n')}</div>
 </section>` : ''}
 <section class="wrap allposts"><a class="btn" href="luu-tru/">Xem toàn bộ kho lưu trữ →</a></section>`;
   write('index.html', shell({ root: '', body, cls: 'home', canonical: '' }));
@@ -304,6 +318,17 @@ for (const pg of pageList) {
   const body = `<article class="post-article"><header class="post-head"><h1>${esc(pg.title)}</h1>${pg.excerpt ? `<p class="standfirst">${esc(pg.excerpt)}</p>` : ''}</header>
 <div class="prose nodrop">${relativize(marked.parse(pg.body), '../')}</div></article>`;
   write(`${pg.url}index.html`, shell({ title: pg.title, root: '../', body, cls: 'page', canonical: pg.url }));
+}
+
+// Trang quản trị: điền danh sách bài vào các ô chọn của mục "Trang nhất"
+{
+  const cfgFile = path.join(ROOT, 'static/admin/config.yml');
+  if (fs.existsSync(cfgFile)) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const opts = posts.map((p) => ({ label: `${pad(p.date.getUTCDate())}/${pad(p.date.getUTCMonth() + 1)}/${p.date.getUTCFullYear()} — ${p.title}`, value: p.slug }));
+    if (!opts.length) opts.push({ label: '(chưa có bài viết)', value: '' });
+    write('admin/config.yml', fs.readFileSync(cfgFile, 'utf8').split('__POST_OPTIONS__').join(JSON.stringify(opts)));
+  }
 }
 
 // 404, RSS, sitemap, CNAME

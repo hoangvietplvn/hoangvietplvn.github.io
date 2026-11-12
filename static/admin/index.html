@@ -7,6 +7,12 @@
 <title>Quản trị blog</title>
 </head>
 <body>
+<script>
+  // luôn tải cấu hình mới nhất (danh sách bài cho mục Trang nhất nằm trong đó)
+  var l = document.createElement('link');
+  l.rel = 'cms-config-url'; l.type = 'application/yaml'; l.href = 'config.yml?t=' + Date.now();
+  document.head.appendChild(l);
+</script>
 <script src="sveltia-cms.js"></script>
 </body>
 </html>
