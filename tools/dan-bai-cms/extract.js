@@ -4,7 +4,7 @@
 const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'VIDEO', 'AUDIO', 'FORM', 'BUTTON', 'INPUT', 'SELECT',
   'TEXTAREA', 'SVG', 'NOSCRIPT', 'OBJECT', 'EMBED', 'LINK', 'META', 'CANVAS', 'TEMPLATE']);
 const KEEP = {
-  P: [], H2: [], H3: [], H4: [], STRONG: [], B: [], EM: [], I: [], U: [], SUB: [], SUP: [], BR: [],
+  P: ['style'], H2: [], H3: [], H4: [], STRONG: [], B: [], EM: [], I: [], U: [], SUB: [], SUP: [], BR: [],
   UL: [], OL: [], LI: [], BLOCKQUOTE: [], FIGURE: [], FIGCAPTION: [],
   TABLE: [], THEAD: [], TBODY: [], TR: [], TD: ['colspan', 'rowspan'], TH: ['colspan', 'rowspan'],
   A: ['href'], IMG: ['src', 'alt'],
@@ -43,6 +43,7 @@ function cleanNode(node, doc) {
     for (const a of allowed) if (child.hasAttribute(a)) attrs[a] = child.getAttribute(a);
     for (const a of [...el.attributes]) el.removeAttribute(a.name);
     for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'style') { if (/text-align\s*:\s*center/i.test(v)) el.setAttribute('style', 'text-align: center;'); continue; }
       if ((k === 'href' || k === 'src') && !safeUrl(v)) continue;
       el.setAttribute(k, v);
     }
@@ -279,6 +280,20 @@ function docFromHtml(html, url) {
   bodyItems.forEach((el) => holder.appendChild(el.cloneNode(true)));
   const text = clean(holder.textContent);
   if (!text) throw new Error('Tài liệu trống hoặc không đọc được nội dung.');
+
+  // Chú thích ảnh: đoạn chữ ngắn ngay sau đoạn chỉ có ảnh → căn giữa và in nghiêng.
+  const kids = [...holder.children];
+  kids.forEach((el, idx) => {
+    if (el.tagName !== 'P' || !el.querySelector('img') || clean(el.textContent)) return;
+    const next = kids[idx + 1];
+    if (!next || next.tagName !== 'P' || next.querySelector('img')) return;
+    const t = clean(next.textContent);
+    if (!t || t.length > 250) return;
+    next.setAttribute('style', 'text-align: center;');
+    const em = doc.createElement('em');
+    em.append(...next.childNodes);
+    next.appendChild(em);
+  });
 
   const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   return {

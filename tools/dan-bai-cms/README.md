@@ -30,6 +30,7 @@ Cập nhật bản mới: chép đè thư mục cũ rồi bấm nút tải lại
 - Không có nhãn: tiêu đề là heading hoặc dòng đầu tài liệu (trong 3 đoạn đầu), đoạn ngắn kế tiếp là sapo, phần còn lại là nội dung. Không tìm thấy thì lấy tên tài liệu. Thông báo sau khi lấy bài ghi rõ tiêu đề lấy từ đâu.
 - Tác giả: chỉ lấy từ dòng «Tác giả:». Không có dòng này thì ô Tác giả trên CMS được để trống (không giữ giá trị mặc định của CMS).
 - Chữ đậm, nghiêng, tiêu đề mục và danh sách được giữ lại.
+- Chú thích ảnh: đoạn chữ ngắn (không quá 250 ký tự) ngay sau một ảnh được căn giữa và in nghiêng.
 - Ảnh trong bài: tiện ích tải từng ảnh (ảnh chèn trong Doc, hoặc link Drive đứng riêng trong một đoạn). Ảnh lớn hơn 2,5MB được nén lại (JPEG) xuống khoảng 2–3MB, vì CMS giới hạn 10MB và CMS chậm khi tải ảnh nặng. Ảnh được tải lên lần lượt, mỗi ảnh chờ CMS xử lý xong mới làm ảnh tiếp theo. Mỗi ảnh được chèn vào đúng vị trí dấu `[[ẢNH n]]` theo đúng thao tác bạn làm: bấm nút ảnh trên thanh công cụ, chọn tệp trong hộp «Thêm/Sửa hình ảnh», chờ CMS tải xong, rồi bấm Lưu. Nếu không mở được hộp, tiện ích thử dán ảnh vào vị trí dấu. Ảnh nào vẫn không lên được thì dấu `[[ẢNH n]]` còn lại để bạn chèn tay rồi xóa dấu, và tiện ích không tự bấm lưu.
 - Ảnh đại diện: quy ước cho tài liệu là ảnh đặt ngay sau sapo (sapo nằm ngay dưới tiêu đề). Tiện ích lấy ảnh đầu tiên sau sapo làm ảnh đại diện; không có sapo thì lấy ảnh đầu tiên sau tiêu đề. Ảnh đó vừa là ảnh đại diện vừa là ảnh đầu tiên của bài nên vẫn nằm trong nội dung. Nếu tài liệu có dòng «Ảnh đại diện:», tiện ích dùng link ghi ở dòng đó.
 
