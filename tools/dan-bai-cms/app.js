@@ -164,63 +164,6 @@ async function getGoogleDoc(id, url) {
   return DanBai.docFromHtml(html, url);
 }
 
-function blobToB64(blob) {
-  return new Promise((ok, bad) => {
-    const fr = new FileReader();
-    fr.onload = () => ok(String(fr.result).split(',')[1]);
-    fr.onerror = () => bad(fr.error);
-    fr.readAsDataURL(blob);
-  });
-}
-
-// CMS giới hạn 10MB và hạ tầng CMS chậm khi tải ảnh nặng nên ảnh được nén về khoảng 2-3MB.
-const MAX_IMG_BYTES = 2.5 * 1024 * 1024;
-const HARD_IMG_BYTES = 3 * 1024 * 1024;
-async function shrinkImage(blob) {
-  const bmp = await createImageBitmap(blob);
-  let best = null;
-  for (const side of [2000, 1600, 1200]) {
-    for (const q of [0.85, 0.75, 0.65]) {
-      const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
-      const w = Math.max(1, Math.round(bmp.width * k)); const h = Math.max(1, Math.round(bmp.height * k));
-      const c = new OffscreenCanvas(w, h);
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(bmp, 0, 0, w, h);
-      const out = await c.convertToBlob({ type: 'image/jpeg', quality: q });
-      if (!best || out.size < best.size) best = out;
-      if (out.size <= MAX_IMG_BYTES) return out;
-    }
-  }
-  if (best && best.size <= HARD_IMG_BYTES) return best;
-  throw new Error('không nén được ảnh xuống khoảng 2-3MB');
-}
-
-// Tải một ảnh (kể cả ảnh trên Drive, bằng phiên đăng nhập của trình duyệt) và chuẩn bị để đưa vào CMS.
-// Ảnh trên Drive: thử lần lượt các địa chỉ tải ảnh (bản thu nhỏ 2000px trước), dùng phiên đăng nhập của trình duyệt.
-function driveIdOf(src) {
-  const m = /drive\.google\.com\/(?:uc\?(?:[^#]*&)?id=|file\/d\/|thumbnail\?(?:[^#]*&)?id=)([\w-]+)/.exec(src || '');
-  return m ? m[1] : '';
-}
-async function fetchImageFile(src) {
-  const id = driveIdOf(src);
-  const urls = id
-    ? [`https://drive.google.com/thumbnail?id=${id}&sz=w2000`, `https://drive.google.com/uc?export=view&id=${id}`, src]
-    : [src];
-  const reasons = [];
-  for (const u of urls) {
-    try {
-      const res = await fetch(u, { credentials: id ? 'include' : 'omit', redirect: 'follow' });
-      if (!res.ok) { reasons.push('máy chủ trả về ' + res.status); continue; }
-      let blob = await res.blob();
-      if (!/^image\//.test(blob.type)) { reasons.push('không phải ảnh (cần quyền xem trên Drive)'); continue; }
-      if (blob.size > MAX_IMG_BYTES || !/image\/(jpeg|png)/.test(blob.type)) blob = await shrinkImage(blob);
-      return { b64: await blobToB64(blob), mime: blob.type, ext: (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg') };
-    } catch (e) { reasons.push(e.message); }
-  }
-  throw new Error(reasons.length ? reasons[0] : 'không tải được');
-}
-
 // Thay mỗi ảnh trong bài bằng dấu [[ẢNH n]] để CMS chèn ảnh đúng vị trí đó sau.
 function prepareDocImages(html) {
   const d = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
@@ -235,15 +178,48 @@ function prepareDocImages(html) {
   return { html: d.body.innerHTML, items };
 }
 
+// Ảnh đang được tải vào kho (src → Promise). Yêu cầu trùng sẽ chờ cùng một tiến trình, không tải lại.
+const storeJobs = new Map();
+function downloadToStore(src, n) {
+  if (!storeJobs.has(src)) {
+    storeJobs.set(src, (async () => {
+      try {
+        const b = await fetchImageFile(src);
+        if (window.DanBaiStore) window.DanBaiStore.add(`anh-trong-bai-${n}.${b.ext}`, b.mime, b.b64, src);
+        return b;
+      } finally {
+        storeJobs.delete(src);
+      }
+    })());
+  }
+  return storeJobs.get(src);
+}
+
+// Ảnh của bài: lấy từ kho ảnh (bản Android) nếu đã có; chưa có thì tải và lưu vào kho.
 async function fetchDocImages(items) {
   const ok = []; const fail = [];
   for (const it of items) {
     try {
-      const b = await fetchImageFile(it.src);
+      const st = window.DanBaiStore ? window.DanBaiStore.findBySource(it.src) : null;
+      if (st) {
+        ok.push({ n: it.n, src: it.src, b64: window.DanBaiStore.readB64(st.id), mime: st.mime, name: st.name });
+        continue;
+      }
+      const b = await downloadToStore(it.src, it.n);
       ok.push({ n: it.n, src: it.src, b64: b.b64, mime: b.mime, name: `anh-trong-bai-${it.n}.${b.ext}` });
     } catch (e) { fail.push(`ảnh ${it.n} (${e.message})`); }
   }
   return { ok, fail };
+}
+
+// Bản Android: tải ảnh của bài vào kho ngay khi lấy bài.
+async function storeArticleImages() {
+  const prep = prepareDocImages(article.html);
+  if (!prep.items.length) return;
+  setStatus($('status'), `Đang tải ${prep.items.length} ảnh vào kho ảnh…`);
+  const got = await fetchDocImages(prep.items);
+  const msg = `Ảnh trong kho: ${got.ok.length}/${prep.items.length}.` + (got.fail.length ? ' Lỗi: ' + got.fail.join('; ') : '');
+  setStatus($('status'), $('status').textContent + ' ' + msg, got.fail.length ? 'err' : 'ok');
 }
 
 async function getArticle(url) {
@@ -279,6 +255,7 @@ $('fetch-form').addEventListener('submit', async (e) => {
     $('article').hidden = false;
     const imgs = $('f-body').querySelectorAll('img').length;
     setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh. Hãy đọc lại trước khi điền vào CMS.` + (article.notes ? ' ' + article.notes.join(' ') : ''), 'ok');
+    if (article.fromDoc && window.DanBaiStore) await storeArticleImages();
   } catch (err) {
     $('article').hidden = true;
     setStatus($('status'), 'Không lấy được bài: ' + (err && err.message ? err.message : err), 'err');

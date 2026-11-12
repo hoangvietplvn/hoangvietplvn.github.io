@@ -12,6 +12,8 @@ import java.util.concurrent.Executors
 // Cầu nối cho trang giao diện (app.html). Mọi lệnh mạng chạy bằng mã gốc, nên không bị chặn truy cập chéo domain.
 class NativeBridge(private val activity: MainActivity) {
 
+    private val store = ImageStore(activity)
+
     private val io = Executors.newCachedThreadPool()
     private val store = ConcurrentHashMap<String, ByteArray>()
     private var seq = 0
@@ -69,6 +71,29 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun hideCms() {
         activity.hideCms()
+    }
+
+    // ---- Kho ảnh ----
+    @JavascriptInterface
+    fun storeList(): String = store.list()
+
+    @JavascriptInterface
+    fun storeAdd(name: String, mime: String, b64: String, source: String): String = store.add(name, mime, b64, source)
+
+    @JavascriptInterface
+    fun storeSize(id: String): Int = store.size(id)
+
+    @JavascriptInterface
+    fun storeGetChunk(id: String, offset: Int, length: Int): String = store.chunk(id, offset, length)
+
+    @JavascriptInterface
+    fun storeDelete(id: String) {
+        store.delete(id)
+    }
+
+    @JavascriptInterface
+    fun storeClear() {
+        store.clear()
     }
 
     // Hiện thông báo điền CMS trên thanh của màn hình CMS.

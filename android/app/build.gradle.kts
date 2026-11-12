@@ -38,7 +38,7 @@ dependencies {
 // Mã giao diện dùng chung với tiện ích Chrome (thư mục tools/dan-bai-cms) được sao chép vào APK khi build.
 val syncWebAssets by tasks.registering(Copy::class) {
     from(rootDir.resolve("../tools/dan-bai-cms")) {
-        include("app.html", "app.css", "app.js", "extract.js", "cms-fill.js", "cms-pick.js", "shim.js", "lib/**")
+        include("app.html", "app.css", "app.js", "extract.js", "cms-fill.js", "cms-pick.js", "shim.js", "imgtools.js", "kho.html", "kho.js", "lib/**")
     }
     into(layout.projectDirectory.dir("src/main/assets/app"))
 }

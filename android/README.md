@@ -7,3 +7,5 @@
 - Cài trên điện thoại: tải APK, mở file, cho phép «Cài đặt ứng dụng không xác định» khi Samsung hỏi.
 
 Lưu ý khi dùng: nếu CMS đang ở trang đăng nhập, ứng dụng báo và không điền. Đăng nhập CMS rồi bấm «Điền vào CMS» lại. Thông báo điền hiện trên thanh phía trên màn hình CMS; nút «← Ứng dụng» quay về màn hình chính.
+
+Kho ảnh (tab giữa): ảnh của bài tự tải vào kho khi bạn lấy bài. Khi điền CMS, ứng dụng lấy ảnh từ kho để tải lên, nên không phải tải lại. Kho nằm trong bộ nhớ riêng của ứng dụng (không cần quyền truy cập thư viện); có thể thêm ảnh từ điện thoại và xóa ảnh trong kho.

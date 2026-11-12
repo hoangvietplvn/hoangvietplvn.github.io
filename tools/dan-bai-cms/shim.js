@@ -133,6 +133,22 @@
     return res;
   };
 
+  // ---- Kho ảnh: ảnh lưu trong bộ nhớ riêng của ứng dụng (không cần quyền truy cập thư viện) ----
+  const CHUNK64 = 3 * 170000; // bội số của 3 để nối chuỗi base64 đúng
+  window.DanBaiStore = {
+    list() { try { return JSON.parse(N.storeList() || '[]'); } catch (e) { return []; } },
+    findBySource(src) { return window.DanBaiStore.list().find((x) => x.source === src) || null; },
+    add(name, mime, b64, source) { return N.storeAdd(name, mime, b64, source || ''); },
+    readB64(id) {
+      const size = N.storeSize(id);
+      let out = '';
+      for (let off = 0; off < size; off += CHUNK64) out += N.storeGetChunk(id, off, Math.min(CHUNK64, size - off));
+      return out;
+    },
+    remove(id) { N.storeDelete(id); },
+    clear() { N.storeClear(); },
+  };
+
   window.chrome = {
     storage: { local, onChanged: { addListener() {}, removeListener() {} } },
     tabs,
