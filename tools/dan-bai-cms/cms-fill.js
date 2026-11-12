@@ -1,5 +1,5 @@
-// Chạy trong trang CMS (ngữ cảnh của trang) để điền bài vào form soạn thảo.
-// Viết cho CMS nền Directus (ngăn «Tạo bài viết», trình soạn thảo TinyMCE) nhưng vẫn dò theo nhãn nên dùng được với form khác.
+// Chạy trong trang CMS để điền bài vào form «Tạo bài viết» (Directus + TinyMCE).
+// Ô được tìm theo tên trên form (ví dụ «Tiêu đề (Tiếng Việt)»), không theo vị trí trong trang.
 // Mỗi hàm phải tự chứa toàn bộ vì được tiêm qua chrome.scripting.executeScript.
 
 // eslint-disable-next-line no-unused-vars
@@ -19,48 +19,11 @@ function danBaiTools() {
   T.norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
   T.visible = (el) => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   T.area = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height; };
-  T.text = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
+  T.text = (el) => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
+  T.clean = (t) => (t || '').replace(/\s+/g, ' ').replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '').trim();
 
-  // Nhãn của một ô: đoạn chữ ngắn đứng ngay trước ô đó (đi ngược lên tối đa 7 cấp).
-  const shown = (el) => { const cs = el.ownerDocument.defaultView.getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden'; };
-  const clean = (t) => t.replace(/[\s*•·]+$/, '').replace(/^[\s*•·]+/, '');
-
-  // Nhãn của một ô. Directus: mỗi ô nằm trong .field, nhãn ở .field-label.
-  // Form khác: lấy đoạn chữ ngắn đứng ngay trước ô (đi ngược lên tối đa 7 cấp).
-  T.labelOf = (el) => {
-    const doc = el.ownerDocument;
-    const field = el.closest('.field');
-    if (field) { const fl = field.querySelector('.field-label'); if (fl && !fl.contains(el) && T.text(fl)) return clean(T.text(fl)); }
-    if (el.id) { const l = doc.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l && T.text(l)) return T.text(l); }
-    const wrap = el.closest('label'); if (wrap && T.text(wrap)) return T.text(wrap);
-    let node = el;
-    for (let depth = 0; depth < 7 && node && node !== doc.body; depth++, node = node.parentElement) {
-      for (let sib = node.previousElementSibling; sib; sib = sib.previousElementSibling) {
-        if (!shown(sib)) continue;
-        if (sib.matches('input, textarea, select, iframe') || sib.querySelector('input, textarea, select, iframe, [contenteditable="true"]')) return '';
-        const t = T.text(sib);
-        if (t && t.length <= 80) return clean(t);
-        if (t) return '';
-      }
-    }
-    return '';
-  };
-
-  // Tìm khối .field theo nhãn (dùng cho ô không phải input: ngày đăng, danh mục, ảnh).
-  T.fieldEl = (kind) => {
-    let best = null; let bestScore = 0;
-    for (const f of document.querySelectorAll('.field')) {
-      const fl = f.querySelector('.field-label');
-      if (!fl || fl.closest('.field') !== f || !shown(f)) continue;
-      const lab = T.norm(clean(T.text(fl)));
-      if (!lab || T.NOT[kind].test(lab)) continue;
-      const i = lab.search(T.PAT[kind]);
-      const sc = i === 0 ? 4 : i > 0 ? 3 : 0;
-      if (sc > bestScore) { best = f; bestScore = sc; }
-    }
-    return best;
-  };
-  T.inField = (kind, selector) => { const f = T.fieldEl(kind); return f ? [...f.querySelectorAll(selector)].find((x) => !x.closest('.field-label') && T.visible(x)) || null : null; };
+  // Tên ô trên form Directus: nút .field-name (hoặc .field-label nếu không có).
+  T.fieldLabel = (f) => { const fn = f.querySelector('.field-name') || f.querySelector('.field-label'); return fn ? T.clean(T.text(fn)) : ''; };
 
   T.PAT = {
     title: /tieu ?de|title|headline|ten bai/,
@@ -74,34 +37,56 @@ function danBaiTools() {
   T.NOT = {
     title: /seo|meta|phu|sub|slug|anh|hinh|image|file|tap tin/,
     sapo: /seo|meta|anh|hinh|image|file/,
-    body: /seo|meta|tom ?tat/,
+    body: /seo|meta|tom ?tat|hien thi|hinh|anh|image/,
     author: /anh|hinh|image/,
     date: /cap nhat|update|het han/,
     category: /phu|sub/,
     cover: /chu thich|hien thi|caption/,
   };
 
-  T.score = (el, kind) => {
-    const lab = T.norm(T.labelOf(el));
-    if (lab && T.NOT[kind].test(lab)) return 0;
-    let s = 0;
-    if (lab) { const i = lab.search(T.PAT[kind]); s = i === 0 ? 4 : i > 0 ? 3 : 0; }
-    const attrs = T.norm([el.getAttribute('name'), el.id, el.getAttribute('aria-label'), el.getAttribute('data-field')].filter(Boolean).join(' '));
-    if (!s && T.PAT[kind].test(attrs) && !T.NOT[kind].test(attrs)) s = 2;
-    const ph = T.norm(el.getAttribute('placeholder'));
-    if (!s && !lab && T.PAT[kind].test(ph) && !/^(tim|loc|search|nhap tu khoa)/.test(ph)) s = 1;
-    if (s && /english|tieng anh|\(en\)/.test(lab)) s = 0.5;
-    return s;
-  };
-
-  T.findField = (kind, selector, allowReadonly) => {
+  // Tìm khối .field đang hiển thị. Ưu tiên tên đã ghi nhớ khi chỉ định; không có thì dò theo từ khóa.
+  T.fieldFor = (kind, m) => {
+    const fields = [...document.querySelectorAll('.field')].filter((f) => T.visible(f) && f.querySelector('.field-name, .field-label'));
+    if (m && m.label) {
+      const want = T.norm(m.label);
+      const hit = fields.find((f) => T.norm(T.fieldLabel(f)) === want) || fields.find((f) => T.norm(T.fieldLabel(f)).startsWith(want));
+      if (hit) return hit;
+    }
     let best = null; let bestScore = 0;
-    for (const el of document.querySelectorAll(selector || 'input[type=text], input:not([type]), textarea')) {
-      if (el.disabled || (!allowReadonly && el.readOnly) || !T.visible(el)) continue;
-      const s = T.score(el, kind);
-      if (s > bestScore) { best = el; bestScore = s; }
+    for (const f of fields) {
+      const lab = T.norm(T.fieldLabel(f));
+      if (!lab || T.NOT[kind].test(lab)) continue;
+      const i = lab.search(T.PAT[kind]);
+      const sc = i === 0 ? 4 : i > 0 ? 3 : 0;
+      if (sc > bestScore) { best = f; bestScore = sc; }
     }
     return best;
+  };
+
+  // Phần tử nhập liệu bên trong khối .field.
+  T.controlIn = (f, kind) => {
+    if (kind === 'cover') return f.querySelector('input[type=file]');
+    if (kind === 'body') return f.querySelector('textarea, iframe, [contenteditable="true"]');
+    if (kind === 'date' || kind === 'category') return f.querySelector('.interface') || f;
+    return f.querySelector('input:not([type=file]):not([type=hidden]), textarea, [contenteditable="true"]');
+  };
+
+  T.resolveField = (kind, m) => {
+    const f = T.fieldFor(kind, m);
+    if (f) return T.controlIn(f, kind);
+    // Dự phòng cho bộ chọn cũ (không có tên): chỉ nhận ô đang hiển thị.
+    if (m && m.selector && !m.label) { const el = T.resolve(m); if (el && T.visible(el)) return el; }
+    return null;
+  };
+
+  // Nhãn của một ô không nằm trong .field (dùng cho ô ngoài form Directus).
+  T.labelOf = (el) => {
+    const doc = el.ownerDocument;
+    const f = el.closest('.field');
+    if (f && T.fieldLabel(f)) return T.fieldLabel(f);
+    if (el.id) { const l = doc.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l && T.text(l)) return T.text(l); }
+    const wrap = el.closest('label'); if (wrap && T.text(wrap)) return T.text(wrap);
+    return '';
   };
 
   T.resolve = (m) => {
@@ -131,7 +116,7 @@ function danBaiTools() {
     let list = [];
     try { list = (t.get && t.get()) || []; } catch (e) { list = []; }
     if (!Array.isArray(list) || !list.length) list = t.editors || [];
-    return [...list].filter((e) => e && e.getContainer && e.getContainer() && T.visible(e.getContainer()));
+    return [...list].filter((e) => { try { return e && e.initialized !== false && e.getContainer && e.getContainer() && T.visible(e.getContainer()); } catch (x) { return false; } });
   };
 
   T.buttonOf = (el) => el && (el.closest('button, [role=button], a, .v-button') || el);
@@ -141,17 +126,23 @@ function danBaiTools() {
 // eslint-disable-next-line no-unused-vars
 async function danBaiFill(data, map, opts) {
   const T = danBaiTools();
-  const { sleep, waitFor, norm, visible, area, text, resolve, setValue } = T;
+  const { sleep, waitFor, norm, visible, area, text, setValue } = T;
   opts = opts || {};
   map = map || {};
   // true = đã điền, false = thử nhưng không được, null = không làm.
   const out = { title: false, sapo: null, body: false, author: null, date: null, cover: null, category: null, submit: null, opened: false, notes: [] };
   const escapeHtml = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
   const pressEscape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+  const clickOutside = () => {
+    const spot = document.querySelector('.drawer h2, .drawer h1, h2, h1') || document.body;
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) spot.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+  };
+  const findBy = (re) => [...document.querySelectorAll('a, button, span, div')]
+    .filter((e) => visible(e) && re.test(norm(text(e))) && e.children.length <= 2)
+    .sort((a, b) => area(a) - area(b))[0] || null;
 
-  // ---- 0. Chưa mở form thì bấm nút «Tạo bài mới» (dấu +) ----
-  const findTitle = () => resolve(map.title) || T.findField('title');
-  let titleEl = findTitle();
+  // ---- 0. Chưa mở form thì bấm nút + (Tạo bài viết) ----
+  let titleEl = T.resolveField('title', map.title);
   if (!titleEl) {
     const adds = [...document.querySelectorAll('[data-icon="add"], [data-icon="add_circle"]')]
       .map(T.buttonOf).filter((b) => visible(b) && !b.closest('.tox, table, tr'));
@@ -161,7 +152,7 @@ async function danBaiFill(data, map, opts) {
     if (add) {
       add.click();
       out.opened = true;
-      titleEl = await waitFor(findTitle, 8000);
+      titleEl = await waitFor(() => T.resolveField('title', map.title), 8000);
       if (titleEl) await sleep(600);
     }
   }
@@ -180,11 +171,11 @@ async function danBaiFill(data, map, opts) {
   setAny(titleEl, data.title); out.title = true;
   for (const [kind, value] of [['sapo', data.sapo], ['author', data.author]]) {
     if (!value) continue;
-    const el = resolve(map[kind]) || T.findField(kind);
+    const el = T.resolveField(kind, map[kind]);
     if (el && el !== titleEl) { setAny(el, value); out[kind] = true; } else out[kind] = false;
   }
 
-  // ---- 2. Nội dung ----
+  // ---- 2. Nội dung (TinyMCE) ----
   function setTiny(ed, html) {
     try { ed.focus(); } catch (e) { /* bỏ qua */ }
     ed.setContent('');
@@ -197,10 +188,6 @@ async function danBaiFill(data, map, opts) {
   }
   function setEditable(el, html) {
     const doc = el.ownerDocument;
-    if (el.ckeditorInstance && el.ckeditorInstance.setData) { el.ckeditorInstance.setData(html); return; }
-    const qc = el.classList.contains('ql-editor') && el.parentElement;
-    const quill = qc && (qc.__quill || (window.Quill && Quill.find && Quill.find(qc)));
-    if (quill && quill.clipboard) { quill.setText(''); quill.clipboard.dangerouslyPasteHTML(0, html); return; }
     el.focus();
     let ok = false;
     try {
@@ -210,138 +197,106 @@ async function danBaiFill(data, map, opts) {
     } catch (e) { ok = false; }
     if (!ok || !el.textContent.trim()) { el.innerHTML = html; el.dispatchEvent(new InputEvent('input', { bubbles: true })); }
   }
-  function byLabel(list, elOf) {
-    const scored = list.map((x) => ({ x, s: T.score(elOf(x), 'body'), a: area(elOf(x)) }));
-    scored.sort((p, q) => q.s - p.s || q.a - p.a);
-    return scored[0].x;
-  }
-  function fillBody(html) {
-    const tiny = T.tinyEditors();
-    const mapped = resolve(map.body);
-    if (mapped) {
-      const ed = tiny.find((e) => { try { return e.getDoc() === mapped.ownerDocument || e.getElement() === mapped || e.getContainer().contains(mapped); } catch (x) { return false; } });
+  async function fillBody(html) {
+    const f = T.fieldFor('body', map.body);
+    if (f) {
+      await waitFor(() => T.tinyEditors().length || f.querySelector('[contenteditable="true"]'), 6000, 200);
+      const inF = (e) => { try { return f.contains(e.getContainer()) || f.contains(e.getElement()); } catch (x) { return false; } };
+      const ed = T.tinyEditors().find(inF);
       if (ed) { setTiny(ed, html); return true; }
-      if (mapped.tagName === 'TEXTAREA' || mapped.tagName === 'INPUT') {
-        const ck = window.CKEDITOR && CKEDITOR.instances && (CKEDITOR.instances[mapped.id] || CKEDITOR.instances[mapped.name]);
-        if (ck) ck.setData(html); else setValue(mapped, html);
-      } else setEditable(mapped.tagName === 'IFRAME' ? mapped.contentDocument.body : mapped, html);
-      return true;
+      const ce = f.querySelector('[contenteditable="true"], [contenteditable=""]');
+      if (ce) { setEditable(ce, html); return true; }
+      const ta = f.querySelector('textarea');
+      if (ta) { setValue(ta, html); return true; }
+      return false;
     }
-    if (tiny.length) { setTiny(byLabel(tiny, (e) => e.getContainer()), html); return true; }
-    if (window.CKEDITOR && CKEDITOR.instances && Object.keys(CKEDITOR.instances).length) {
-      const list = Object.values(CKEDITOR.instances).filter((e) => e.container && e.container.$);
-      if (list.length) { byLabel(list, (e) => e.container.$).setData(html); return true; }
-    }
-    const editables = [...document.querySelectorAll('.ck-editor__editable, .ql-editor, .note-editable, .fr-element, .ProseMirror, [contenteditable="true"], [contenteditable=""]')]
-      .filter((el) => visible(el) && el !== titleEl && !el.parentElement.closest('[contenteditable="true"], [contenteditable=""]'));
-    if (editables.length) { setEditable(byLabel(editables, (e) => e), html); return true; }
-    const frames = [...document.querySelectorAll('iframe')].filter((f) => {
-      try { const d = f.contentDocument; return d && d.body && visible(f) && (d.designMode === 'on' || d.body.isContentEditable); } catch (e) { return false; }
-    });
-    if (frames.length) { setEditable(byLabel(frames, (f) => f).contentDocument.body, html); return true; }
-    const ta = T.findField('body', 'textarea');
-    if (ta) { setValue(ta, html); return true; }
+    const tiny = T.tinyEditors();
+    if (tiny.length) { setTiny(tiny[0], html); return true; }
     return false;
   }
-  try {
-    // Trình soạn thảo có thể khởi tạo chậm hơn form một nhịp.
-    if (!resolve(map.body)) await waitFor(() => T.tinyEditors().length || document.querySelector('[contenteditable="true"], .ck-editor__editable'), 3000);
-    out.body = fillBody(data.html);
-  } catch (e) { out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
+  try { out.body = await fillBody(data.html); } catch (e) { out.notes.push('Lỗi khi điền nội dung: ' + e.message); }
 
-  // ---- 3. Ngày đăng = bây giờ ----
+  // ---- 3. Ngày đăng = bây giờ (nút «Set to Now» trong lịch) ----
   async function setDateNow() {
-    const el = resolve(map.date) || T.findField('date', 'input', true) || T.inField('date', '.interface .v-list-item, .interface button, .interface input');
-    if (!el) return false;
-    const hasValue = () => !!el.value || /\d{1,2}[/:.-]\d{1,2}/.test(text(el));
-    if (hasValue()) return true;
-    if (el.type === 'datetime-local' || el.type === 'date') {
+    const f = T.fieldFor('date', map.date);
+    if (!f) return false;
+    const has = () => { const inp = f.querySelector('input'); return (!!inp && !!inp.value) || /\d{1,2}\/\d{1,2}\/\d{4}/.test(text(f)); };
+    if (has()) return true;
+    const native = f.querySelector('input[type=datetime-local], input[type=date]');
+    if (native) {
       const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
-      setValue(el, el.type === 'date' ? d.slice(0, 10) : d.slice(0, 16));
+      setValue(native, native.type === 'date' ? d.slice(0, 10) : d.slice(0, 16));
       return true;
     }
-    el.click();
-    const cal = await waitFor(() => [...document.querySelectorAll('.flatpickr-calendar')].find(visible), 3000);
-    let ok = false;
-    if (cal) {
-      const hosts = [cal.parentElement, cal.previousElementSibling, ...document.querySelectorAll('.v-date-picker, .flatpickr-input')];
-      const host = hosts.find((h) => h && h._flatpickr && h._flatpickr.calendarContainer === cal);
-      if (host) { host._flatpickr.setDate(new Date(), true); ok = true; }
-    }
-    if (!ok) {
-      const btn = [...document.querySelectorAll('button, a')].filter(visible)
-        .find((b) => /to-now|set-now|today-btn/i.test(String(b.className)) || /^(set to now|dat ve bay gio|dat thanh bay gio|bay gio|hien tai)/.test(norm(text(b))));
-      if (btn) { btn.click(); ok = true; }
-    }
+    T.controlIn(f, 'date').click();
+    const now = await waitFor(() => findBy(/^(set to now|dat ve bay gio|bay gio)$/), 3000);
+    if (now) now.click();
     await sleep(300);
     pressEscape();
     await sleep(200);
-    if (cal && visible(cal)) {
-      const outside = document.querySelector('.v-drawer .header-bar .title, .v-drawer h1, h1') || document.body;
-      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) outside.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-      await sleep(200);
-    }
-    if (cal && visible(cal)) { el.click(); await sleep(200); }
-    return ok || hasValue();
+    if (!has()) { clickOutside(); await sleep(200); }
+    return has();
   }
   if (opts.setDate) { try { out.date = await setDateNow(); } catch (e) { out.date = false; } }
 
-  // ---- 4. Ảnh đại diện: dùng chức năng «nhập từ URL» của CMS ----
-  async function importCover(url) {
-    const links = [...document.querySelectorAll('[data-icon="link"], [data-icon="insert_link"]')]
-      .filter((i) => !i.closest('.tox')).map(T.buttonOf).filter(visible);
-    const btn = links.find((b) => { const l = norm(T.labelOf(b)); return T.PAT.cover.test(l) && !T.NOT.cover.test(l); });
-    if (!btn) return null; // đã có ảnh, hoặc form không có nút nhập từ URL
-    const before = new Set(document.querySelectorAll('input'));
-    btn.click();
-    const input = await waitFor(() => [...document.querySelectorAll('input')].find((i) => !before.has(i) && visible(i) && !i.readOnly && i.type !== 'file'), 4000);
+  // ---- 4. Ảnh đại diện: tải ảnh bài gốc (đã đọc sẵn trong data.coverFile) rồi đẩy vào ô tải tệp ----
+  async function setCover(d) {
+    const f = T.fieldFor('cover', map.cover);
+    if (!f) return false;
+    if (f.querySelector('img')) return true;
+    const input = T.controlIn(f, 'cover');
     if (!input) return false;
-    setValue(input, url, true);
-    await sleep(300);
-    const box = input.closest('.v-card, [role=dialog], .v-dialog, .dialog, .modal') || input.parentElement.parentElement.parentElement;
-    const buttons = [...box.querySelectorAll('button')].filter(visible);
-    const go = buttons.filter((b) => !b.disabled).pop();
-    if (!go || buttons.length < 2 || go === buttons[0]) { if (buttons[0]) buttons[0].click(); return false; }
-    go.click();
-    const closed = await waitFor(() => !visible(input), 30000, 300);
-    if (!closed) { buttons[0].click(); return false; }
-    await sleep(400);
-    return !visible(btn);
+    const bin = atob(d.b64);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const file = new File([u8], d.name, { type: d.mime || 'image/jpeg' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return !!(await waitFor(() => f.querySelector('img'), 20000, 300));
   }
-  if (opts.importCover && data.cover) { try { out.cover = await importCover(data.cover); } catch (e) { out.cover = false; } }
+  if (opts.importCover) {
+    if (data.coverFile) { try { out.cover = await setCover(data.coverFile); } catch (e) { out.cover = false; } }
+    else out.cover = null;
+  }
 
-  // ---- 5. Danh mục ----
+  // ---- 5. Danh mục: mở hộp «Chọn Bản Ghi», chọn dòng có tên trùng, bấm dấu tích ----
+  const findModal = () => [...document.querySelectorAll('div, section, article, aside, [role=dialog]')]
+    .filter((e) => visible(e) && /chon ban ghi/.test(norm(text(e).slice(0, 200))) && e.querySelector('tr, .v-list-item, [role=option]'))
+    .sort((a, b) => area(a) - area(b))[0] || null;
+  const findRow = (modal, want) => [...modal.querySelectorAll('tr, [role=row], .v-list-item, li, [role=option]')]
+    .filter((r) => visible(r) && [...r.querySelectorAll('td, span, div, li')].some((c) => norm(text(c)) === want))
+    .sort((a, b) => text(a).length - text(b).length)[0] || null;
   async function setCategory(name) {
+    const f = T.fieldFor('category', map.category);
+    if (!f) return false;
     const want = norm(name);
-    const el = resolve(map.category) || T.findField('category', 'input', true) ||
-      T.inField('category', '.interface .v-list-item, .interface .v-select, .interface [role=combobox], .interface select, .interface button') ||
-      [...document.querySelectorAll('.v-select, [role=combobox], select')].filter(visible).find((x) => T.score(x, 'category') >= 3);
-    if (!el) return false;
-    if (el.tagName === 'SELECT') {
-      const opt = [...el.options].find((o) => norm(o.textContent) === want);
-      if (!opt) return false;
-      el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    if (norm(el.value || '') === want || norm(text(el)) === want) return true;
-    el.click();
-    const sel = '.v-list-item, [role=option], [role=menuitem], li, tr, .table-row';
-    const pick = await waitFor(() => [...document.querySelectorAll(sel)].filter((x) => visible(x) && x !== el && !x.contains(el) && !x.closest('.module-nav, .module-bar, nav, thead')).find((x) => {
-      const t = norm(text(x));
-      return t === want || [...x.children].some((c) => norm(text(c)) === want);
-    }), 5000);
-    if (!pick) { pressEscape(); return false; }
-    pick.click();
+    const ifc = f.querySelector('.interface') || f;
+    if (norm(text(ifc)).includes(want)) return true;
+    ifc.click();
+    const modal = await waitFor(findModal, 5000);
+    if (!modal) return false;
+    const row = await waitFor(() => findRow(modal, want), 3000);
+    if (!row) { pressEscape(); return false; }
+    row.click();
+    const radio = row.querySelector('input[type=radio], input[type=checkbox]');
+    if (radio && !radio.checked) radio.click();
+    await sleep(250);
+    const ok = [...modal.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop();
+    if (ok) ok.click(); else pressEscape();
+    await waitFor(() => !visible(modal), 4000, 200);
     await sleep(300);
-    return true;
+    return norm(text(ifc)).includes(want);
   }
   if (data.category) { try { out.category = await setCategory(data.category); } catch (e) { out.category = false; } }
 
-  // ---- 6. Bấm nút lưu / gửi duyệt (chỉ khi mọi bước đều thành công) ----
+  // ---- 6. Bấm nút lưu (chỉ khi mọi ô đều điền được) ----
   if (opts.autoSubmit) {
-    const btn = resolve(map.submit);
+    const btn = T.resolve(map.submit);
     const failed = ['title', 'sapo', 'body', 'author', 'date', 'cover', 'category'].some((k) => out[k] === false);
-    if (!btn) out.submit = false;
+    if (!btn || !visible(btn)) out.submit = false;
     else if (failed) { out.submit = false; out.notes.push('Còn ô chưa điền được nên không tự bấm nút lưu.'); }
     else { setTimeout(() => btn.click(), 800); out.submit = true; }
   }
@@ -358,28 +313,25 @@ function danBaiDiag() {
   const t = window.tinymce;
   lines.push('tinymce: ' + (t ? (t.majorVersion + '.' + t.minorVersion) : 'không có') + ', CKEDITOR: ' + (window.CKEDITOR ? 'có' : 'không'));
   T.tinyEditors().forEach((e) => lines.push('  editor ' + e.id + ' | nhãn: ' + T.labelOf(e.getContainer())));
-  lines.push('--- Ô nhập ---');
-  for (const el of document.querySelectorAll('input, textarea, select, iframe, [contenteditable="true"]')) {
-    if (!T.visible(el) || el.closest('.tox')) continue;
-    lines.push([el.tagName.toLowerCase() + (el.type ? '[' + el.type + ']' : ''), el.readOnly ? 'readonly' : '', 'nhãn: ' + T.labelOf(el),
-      'ph: ' + (el.getAttribute('placeholder') || ''), chain(el)].filter(Boolean).join(' | '));
-  }
   lines.push('--- Các khối .field ---');
   for (const f of document.querySelectorAll('.field')) {
-    const fl = f.querySelector('.field-label');
-    if (!fl || fl.closest('.field') !== f) continue;
+    if (!T.visible(f)) continue;
     const itf = f.querySelector('.interface');
-    const kids = itf ? [...itf.querySelectorAll('input, textarea, button, iframe, .v-list-item')].slice(0, 5).map((k) => k.tagName.toLowerCase() + (cls(k) ? '.' + cls(k) : '')).join(', ') : '';
-    lines.push(T.text(fl) + ' | ' + cls(f) + ' | ' + kids);
+    const kids = itf ? [...itf.querySelectorAll('input, textarea, button, iframe, .v-list-item')].slice(0, 5).map((k) => k.tagName.toLowerCase() + (k.type ? '[' + k.type + ']' : '') + (cls(k) ? '.' + cls(k) : '')).join(', ') : '';
+    lines.push(T.fieldLabel(f) + ' | ' + cls(f) + ' | ' + kids);
+  }
+  lines.push('--- Ô nhập ngoài form ---');
+  for (const el of document.querySelectorAll('input, textarea, select, iframe')) {
+    if (!T.visible(el) || el.closest('.tox, .field')) continue;
+    lines.push([el.tagName.toLowerCase() + (el.type ? '[' + el.type + ']' : ''), el.readOnly ? 'readonly' : '', 'ph: ' + (el.getAttribute('placeholder') || ''), chain(el)].filter(Boolean).join(' | '));
   }
   lines.push('--- Nút có biểu tượng ---');
   const icons = new Map();
   for (const i of document.querySelectorAll('[data-icon]')) {
     if (!T.visible(i) || i.closest('.tox')) continue;
     const b = T.buttonOf(i); const key = i.getAttribute('data-icon');
-    if (b !== i && !icons.has(key)) icons.set(key, chain(b) + ' | nhãn: ' + T.labelOf(b));
+    if (b !== i && !icons.has(key)) icons.set(key, chain(b));
   }
   icons.forEach((v, k) => lines.push(k + ' | ' + v));
-  lines.push('flatpickr: ' + document.querySelectorAll('.flatpickr-calendar').length);
   return lines.join('\n').slice(0, 12000);
 }

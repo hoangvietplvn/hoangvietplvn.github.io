@@ -12,7 +12,7 @@ const FIELDS = [
 ];
 
 // map2: bản chỉ định ô của phiên bản này (bản cũ lưu ở «map» không còn dùng).
-let settings = { cmsUrl2: DEFAULT_CMS, map2: {}, autoSubmit: false, setDate: true, importCover: true, credit: false, category: '' };
+let settings = { cmsUrl2: DEFAULT_CMS, map2: {}, autoSubmit: false, setDate: true, importCover: true, credit: false, category: 'Tin hoạt động' };
 let article = null;
 
 function setStatus(el, text, kind) { el.textContent = text; el.className = 'status' + (kind ? ' ' + kind : ''); }
@@ -20,6 +20,13 @@ function setStatus(el, text, kind) { el.textContent = text; el.className = 'stat
 // ---------- Thiết lập ----------
 async function loadSettings() {
   settings = await chrome.storage.local.get(settings);
+  // Bộ chọn cũ (không có tên ô) có thể trỏ nhầm sang ô khác; bỏ đi để chỉ định lại.
+  const kept = {};
+  for (const [k, v] of Object.entries(settings.map2 || {})) if (v && (v.label || k === 'submit')) kept[k] = v;
+  if (Object.keys(kept).length !== Object.keys(settings.map2 || {}).length) {
+    settings.map2 = kept;
+    await chrome.storage.local.set({ map2: kept });
+  }
   $('s-cms').value = settings.cmsUrl2;
   $('s-submit').checked = settings.autoSubmit;
   $('s-date').checked = settings.setDate;
@@ -38,7 +45,7 @@ function renderMap() {
     const m = settings.map2[key];
     const sel = tr.insertCell();
     sel.className = 'sel';
-    sel.textContent = m ? (m.frame ? m.frame + ' ▸ ' : '') + m.selector : (key === 'submit' ? 'chưa chỉ định' : 'tự dò theo nhãn');
+    sel.textContent = m ? (m.label || m.selector) : (key === 'submit' ? 'chưa chỉ định' : 'tự dò theo nhãn');
     const act = tr.insertCell();
     const pick = document.createElement('button');
     pick.type = 'button'; pick.textContent = 'Chỉ định';
@@ -198,6 +205,23 @@ function buildData() {
   };
 }
 
+// Tải ảnh đại diện của bài gốc về trình duyệt (tiện ích có quyền truy cập mọi trang), rồi đưa vào CMS dưới dạng tệp.
+async function fetchCover(url) {
+  const res = await fetch(url, { credentials: 'omit' });
+  if (!res.ok) throw new Error('máy chủ báo gốc trả về ' + res.status);
+  const blob = await res.blob();
+  if (!/^image\//.test(blob.type)) throw new Error('đường dẫn không phải ảnh');
+  if (blob.size > 10 * 1024 * 1024) throw new Error('ảnh lớn hơn 10MB');
+  const b64 = await new Promise((ok, bad) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(String(fr.result).split(',')[1]);
+    fr.onerror = () => bad(fr.error);
+    fr.readAsDataURL(blob);
+  });
+  const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  return { b64, mime: blob.type, name: 'anh-dai-dien.' + ext };
+}
+
 $('fill-btn').addEventListener('click', async () => {
   const st = $('fill-status');
   const data = buildData();
@@ -205,6 +229,11 @@ $('fill-btn').addEventListener('click', async () => {
   $('fill-btn').disabled = true;
   setStatus(st, 'Đang điền vào CMS…');
   try {
+    let coverNote = '';
+    if (settings.importCover && data.cover) {
+      try { data.coverFile = await fetchCover(data.cover); }
+      catch (e) { coverNote = ' Không tải được ảnh đại diện từ bài gốc (' + e.message + '); hãy tải ảnh rồi đẩy lên tay.'; }
+    }
     const { tab, opened } = await getCmsTab();
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', files: ['cms-fill.js'] });
     const [res] = await chrome.scripting.executeScript({
@@ -214,10 +243,9 @@ $('fill-btn').addEventListener('click', async () => {
     });
     const r = res.result || {};
     const names = { title: 'tiêu đề', sapo: 'tóm tắt', body: 'nội dung', author: 'tác giả', date: 'ngày đăng', cover: 'ảnh đại diện', category: 'danh mục' };
-    const manualNames = { ...names, cover: 'ảnh đại diện (nếu chưa có)' };
-    const done = Object.keys(names).filter((k) => r[k] === true).map((k) => names[k]);
+        const done = Object.keys(names).filter((k) => r[k] === true).map((k) => names[k]);
     const missed = Object.keys(names).filter((k) => r[k] === false).map((k) => names[k]);
-    const manual = Object.keys(names).filter((k) => r[k] === null && k !== 'sapo' && k !== 'author').map((k) => manualNames[k]);
+    const manual = Object.keys(names).filter((k) => r[k] === null && k !== 'sapo' && k !== 'author' && !(k === 'cover' && coverNote)).map((k) => names[k]);
     let text = done.length ? 'Đã điền: ' + done.join(', ') + '.' : '';
     if (missed.length) {
       text += ` Chưa điền được: ${missed.join(', ')}; hãy nhập tay các ô này` + (opened ? ' (nếu CMS chưa đăng nhập, hãy đăng nhập rồi bấm lại).' : '.');
@@ -227,6 +255,7 @@ $('fill-btn').addEventListener('click', async () => {
     else if (settings.autoSubmit && r.submit === false) text += ' Chưa bấm nút lưu' + (settings.map2.submit ? '.' : ' vì chưa chỉ định nút.');
     else if (done.length) text += ' Hãy kiểm tra rồi bấm lưu trên CMS.';
     if (r.notes && r.notes.length) text += ' ' + r.notes.join(' ');
+    text += coverNote;
     setStatus(st, text.trim(), !done.length || missed.length ? 'err' : 'ok');
     if (done.length) await focusTab(tab);
   } catch (err) {

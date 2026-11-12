@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dẫn bài vào CMS",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Dán link bài báo, tự bóc tách tiêu đề, sapo, nội dung và điền vào trang soạn bài của CMS.",
   "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
