@@ -230,11 +230,23 @@ async function danBaiFill(data, map, opts) {
     }
     T.controlIn(f, 'date').click();
     const now = await waitFor(() => findBy(/^(set to now|dat ve bay gio|bay gio)$/), 3000);
-    if (now) now.click();
+    if (!now) { out.notes.push('Ngày đăng: không thấy nút «Set to Now» trong lịch.'); pressEscape(); return false; }
+    now.click();
+    await sleep(500);
+    if (!has()) {
+      // Lịch không ghi giá trị: gõ trực tiếp vào ô ngày giờ theo định dạng của CMS.
+      const inp = f.querySelector('input') || document.querySelector('.v-drawer input[type=text]');
+      if (inp) {
+        const d = new Date(); const p2 = (n) => String(n).padStart(2, '0');
+        const str = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+        setValue(inp, str, true);
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+        await sleep(300);
+      }
+    }
+    if (!has()) out.notes.push('Ngày đăng: đã bấm «Set to Now» nhưng ô vẫn trống.');
+    clickOutside();
     await sleep(300);
-    pressEscape();
-    await sleep(200);
-    if (!has()) { clickOutside(); await sleep(200); }
     return has();
   }
   if (opts.setDate) { try { out.date = await setDateNow(); } catch (e) { out.date = false; } }
@@ -280,13 +292,18 @@ async function danBaiFill(data, map, opts) {
     if (!modal) return false;
     const row = await waitFor(() => findRow(modal, want), 3000);
     if (!row) { pressEscape(); return false; }
-    row.click();
-    const radio = row.querySelector('input[type=radio], input[type=checkbox]');
-    if (radio && !radio.checked) radio.click();
+    // Chọn dòng: bấm vào ô tròn ở cột đầu của dòng. Nút dấu tích ở đầu hộp chỉ bật sau khi đã chọn.
+    const okBtn = () => [...modal.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop() || null;
+    const isOff = (b) => !b || b.disabled || /disabled/.test(String(b.className)) || b.getAttribute('aria-disabled') === 'true' || getComputedStyle(b).opacity < 1 || getComputedStyle(b).pointerEvents === 'none';
+    const circle = row.querySelector('input[type=radio], [role=radio], .radio, .v-radio, .checkbox, [role=checkbox]') || row.querySelector('td:first-child > *, td:first-child') || row;
+    circle.click();
     await sleep(250);
-    const ok = [...modal.querySelectorAll('[data-icon="check"]')].map(T.buttonOf).filter(visible).pop();
-    if (ok) ok.click(); else pressEscape();
-    await waitFor(() => !visible(modal), 4000, 200);
+    if (isOff(okBtn())) { row.click(); await sleep(250); }
+    const ok = okBtn();
+    if (!ok || isOff(ok)) { out.notes.push('Danh mục: đã mở hộp «Chọn Bản Ghi» nhưng không chọn được dòng «' + name + '».'); pressEscape(); return false; }
+    ok.click();
+    const closed = await waitFor(() => !visible(modal), 4000, 200);
+    if (!closed) { out.notes.push('Danh mục: đã bấm dấu tích nhưng hộp chọn chưa đóng.'); return false; }
     await sleep(300);
     return norm(text(ifc)).includes(want);
   }
