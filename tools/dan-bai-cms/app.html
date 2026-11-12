@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dẫn bài vào CMS</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <h1>Dẫn bài vào CMS</h1>
+
+  <form id="fetch-form" class="row">
+    <input id="url" type="url" placeholder="Dán link bài báo vào đây" required autofocus>
+    <button id="fetch-btn" type="submit">Lấy bài</button>
+  </form>
+  <p id="status" class="status" role="status"></p>
+
+  <section id="article" hidden>
+    <label>Tiêu đề
+      <textarea id="f-title" rows="2"></textarea>
+    </label>
+    <label>Sapo
+      <textarea id="f-sapo" rows="3"></textarea>
+    </label>
+    <div class="cols">
+      <label>Tác giả
+        <input id="f-author" type="text">
+      </label>
+      <label>Tên nguồn
+        <input id="f-site" type="text">
+      </label>
+    </div>
+    <label class="check"><input id="f-credit" type="checkbox" checked> Thêm dòng ghi nguồn kèm link gốc ở cuối bài</label>
+    <p id="cover-row" class="hint" hidden>Ảnh đại diện của bài gốc: <a id="cover-link" target="_blank" rel="noopener"></a></p>
+
+    <div class="label">Nội dung <span class="hint">(sửa trực tiếp được)</span></div>
+    <div id="f-body" class="body" contenteditable="true"></div>
+
+    <div class="row actions">
+      <button id="fill-btn" type="button" class="primary">Điền vào CMS</button>
+      <span id="fill-status" class="status" role="status"></span>
+    </div>
+  </section>
+
+  <details id="settings">
+    <summary>Thiết lập CMS</summary>
+    <label>Địa chỉ trang soạn bài mới của CMS
+      <input id="s-cms" type="url" placeholder="https://cms.phapluat.gov.vn/admin/">
+    </label>
+    <p class="hint">Tiện ích tự dò ô tiêu đề, sapo và nội dung. Nếu dò sai, hãy mở trang soạn bài trên CMS rồi bấm «Chỉ định» để chỉ đúng từng ô. Chỉ cần làm một lần.</p>
+    <table id="map-table"><tbody></tbody></table>
+    <label class="check"><input id="s-submit" type="checkbox"> Tự bấm nút gửi duyệt sau khi điền <span class="hint">(cần chỉ định nút trước)</span></label>
+  </details>
+</main>
+<script src="lib/Readability.js"></script>
+<script src="extract.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
