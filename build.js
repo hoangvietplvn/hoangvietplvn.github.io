@@ -93,6 +93,7 @@ let posts = fs.readdirSync(postsDir).filter((f) => /\.(md|html)$/.test(f)).map((
     cover: meta.cover || '',
     coverCaption: meta.cover_caption || '',
     layout: meta.layout || 'article',
+    theme: meta.theme || '',
     draft: meta.draft === 'true',
     minutes: Math.max(1, Math.round(words / 220)),
     url: `bai-viet/${slug}/`,
@@ -184,12 +185,12 @@ for (const p of posts) if (!p.cover) write(`assets/covers/${p.slug}.svg`, coverS
   const [lead, ...rest] = posts;
   const side = rest.slice(0, 3), more = rest.slice(3);
   const body = !lead ? '<div class="wrap empty"><p>Chưa có bài viết nào.</p></div>' : `
-<section class="front wrap">
+<section class="front wrap${side.length ? '' : ' front-solo'}">
   <div class="front-lead">${card(lead, '', { big: true })}</div>
-  <aside class="front-side">
+  ${side.length ? `<aside class="front-side">
     <h2 class="label">Đáng đọc</h2>
     ${side.map((p) => card(p, '', { image: false })).join('\n')}
-  </aside>
+  </aside>` : ''}
 </section>
 ${more.length ? `<section class="wrap">
   <h2 class="label rule">Mới đăng</h2>
@@ -220,19 +221,24 @@ posts.forEach((p, i) => {
   <p class="byline">Bài: <strong>${esc(p.author)}</strong> · <time datetime="${isoDate(p.date)}">${fmtDateLong(p.date)}</time> · ${p.minutes} phút đọc</p>
 </header>
 <figure class="post-cover"><img src="${cover}" alt="">${p.coverCaption ? `<figcaption>${esc(p.coverCaption)}</figcaption>` : ''}</figure>`;
-  const body = `
-<article class="post-article">
+  const article = p.layout === 'custom'
+    ? `<article class="post-article">
+${relativize(p.html, root)}
+</article>`
+    : `<article class="post-article">
 ${head}
 <div class="prose">
 ${relativize(p.html, root)}
 <p class="endmark" aria-hidden="true">◆</p>
 </div>
-</article>
+</article>`;
+  const body = `
+${article}
 <nav class="pager wrap" aria-label="Bài khác">
   ${older ? `<a class="prev" href="${root}${older.url}"><span>← Bài trước</span>${esc(older.title)}</a>` : '<span></span>'}
   ${newer ? `<a class="next" href="${root}${newer.url}"><span>Bài sau →</span>${esc(newer.title)}</a>` : '<span></span>'}
 </nav>`;
-  write(`${p.url}index.html`, shell({ title: p.title, description: p.excerpt, root, body, cls: `post ${p.layout}`, image: coverOf(p), canonical: p.url }));
+  write(`${p.url}index.html`, shell({ title: p.title, description: p.excerpt, root, body, cls: `post ${p.layout}${p.theme ? ' theme-' + p.theme : ''}`, image: coverOf(p), canonical: p.url }));
 });
 
 // Chuyên mục

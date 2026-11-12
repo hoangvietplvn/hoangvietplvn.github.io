@@ -36,7 +36,7 @@ draft: true
 
 ### Khối trình bày cho bài long-form
 
-Chèn trực tiếp HTML vào bài (xem ví dụ trong `posts/2026-11-12-nhung-buoi-sang-khong-voi.md`):
+Chèn trực tiếp HTML vào bài:
 
 - Trích dẫn nổi bật: `<aside class="pullquote">Câu trích<cite>Nguồn</cite></aside>`
 - Ảnh rộng / tràn màn hình: `<figure class="wide">` hoặc `<figure class="full">` kèm `<figcaption>`
@@ -57,3 +57,7 @@ Chèn trực tiếp HTML vào bài (xem ví dụ trong `posts/2026-11-12-nhung-b
 2. Trong kho: **Settings → Pages → Source: GitHub Actions**. Mỗi lần đẩy bài mới, website tự cập nhật.
 3. Mua tên miền, điền vào `site.config.json` (`"domain": "tenmien.com"`, `"url": "https://tenmien.com"`).
 4. Tại nhà cung cấp tên miền, tạo bản ghi DNS trỏ về GitHub Pages, rồi nhập tên miền ở **Settings → Pages → Custom domain** và bật **Enforce HTTPS**.
+
+## Bài long-form thiết kế riêng
+
+Bài cần giao diện riêng (ví dụ loạt bài tông đỏ, nền trống đồng) là một tệp `.html` trong `posts/` với `layout: custom` và `theme: trong-dong`. Phần CSS của chủ đề nằm cuối `src/styles.css`.
