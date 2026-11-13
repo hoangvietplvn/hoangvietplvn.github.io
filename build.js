@@ -148,7 +148,8 @@ function shell({ title, description, root, body, cls = '', image = '', canonical
 <meta property="og:title" content="${esc(title || cfg.title)}">
 <meta property="og:description" content="${esc(description || cfg.description)}">
 <meta property="og:type" content="${cls.includes('post') ? 'article' : 'website'}">
-${image ? `<meta property="og:image" content="${esc(cfg.url.replace(/\/$/, '') + '/' + image)}">` : ''}
+<meta property="og:image" content="${esc(cfg.url.replace(/\/$/, '') + '/' + (image || 'images/chia-se.png'))}">
+${image ? '' : '<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n'}<meta name="twitter:card" content="summary_large_image">
 ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/' + canonical)}">` : ''}
 <link rel="alternate" type="application/rss+xml" title="${esc(cfg.title)}" href="${root}feed.xml">
 <link rel="icon" href="${root}assets/favicon.svg" type="image/svg+xml">
