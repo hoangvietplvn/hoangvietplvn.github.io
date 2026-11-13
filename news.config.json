@@ -7,20 +7,32 @@
       "name": "Thời sự",
       "feeds": [
         {
+          "source": "Nhân Dân",
+          "url": "https://nhandan.vn/rss/chinhtri-1171.rss"
+        },
+        {
+          "source": "Báo Tin tức",
+          "url": "https://baotintuc.vn/rss/chinh-tri-321.rss"
+        },
+        {
+          "source": "Báo Chính phủ",
+          "url": "https://baochinhphu.vn/thoi-su.rss"
+        },
+        {
+          "source": "CAND",
+          "url": "https://cand.vn/rss/thoi-su-1415.rss"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/thoi-su-chinh-tri.html"
+        },
+        {
+          "source": "Dân Trí",
+          "url": "https://dantri.com.vn/rss/thoi-su.rss"
+        },
+        {
           "source": "VnExpress",
           "url": "https://vnexpress.net/rss/thoi-su.rss"
-        },
-        {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/thoi-su.rss"
-        },
-        {
-          "source": "Thanh Niên",
-          "url": "https://thanhnien.vn/rss/thoi-su.rss"
-        },
-        {
-          "source": "VietnamNet",
-          "url": "https://vietnamnet.vn/rss/thoi-su.rss"
         }
       ]
     },
@@ -28,20 +40,32 @@
       "name": "Quốc tế",
       "feeds": [
         {
+          "source": "Nhân Dân",
+          "url": "https://nhandan.vn/rss/thegioi-1231.rss"
+        },
+        {
+          "source": "Báo Tin tức",
+          "url": "https://baotintuc.vn/rss/the-gioi-130.rss"
+        },
+        {
+          "source": "Báo Chính phủ",
+          "url": "https://baochinhphu.vn/quoc-te.rss"
+        },
+        {
+          "source": "CAND",
+          "url": "https://cand.vn/rss/quoc-te-1440.rss"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/quoc-te.html"
+        },
+        {
+          "source": "Dân Trí",
+          "url": "https://dantri.com.vn/rss/the-gioi.rss"
+        },
+        {
           "source": "VnExpress",
           "url": "https://vnexpress.net/rss/the-gioi.rss"
-        },
-        {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/the-gioi.rss"
-        },
-        {
-          "source": "Thanh Niên",
-          "url": "https://thanhnien.vn/rss/the-gioi.rss"
-        },
-        {
-          "source": "VietnamNet",
-          "url": "https://vietnamnet.vn/rss/the-gioi.rss"
         }
       ]
     },
@@ -49,20 +73,36 @@
       "name": "Pháp luật",
       "feeds": [
         {
-          "source": "VnExpress",
-          "url": "https://vnexpress.net/rss/phap-luat.rss"
+          "source": "Nhân Dân",
+          "url": "https://nhandan.vn/rss/phapluat-1287.rss"
         },
         {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/phap-luat.rss"
+          "source": "Báo Tin tức",
+          "url": "https://baotintuc.vn/rss/phap-luat-475.rss"
         },
         {
-          "source": "VietnamNet",
-          "url": "https://vietnamnet.vn/rss/phap-luat.rss"
+          "source": "Báo Chính phủ",
+          "url": "https://baochinhphu.vn/phap-luat.rss"
+        },
+        {
+          "source": "CAND",
+          "url": "https://cand.vn/rss/phap-luat-1445.rss"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/phap-luat.html"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/tu-phap.html"
         },
         {
           "source": "Dân Trí",
           "url": "https://dantri.com.vn/rss/phap-luat.rss"
+        },
+        {
+          "source": "VnExpress",
+          "url": "https://vnexpress.net/rss/phap-luat.rss"
         }
       ]
     },
@@ -70,16 +110,32 @@
       "name": "Xã hội",
       "feeds": [
         {
-          "source": "Tiền Phong",
-          "url": "https://tienphong.vn/rss/xa-hoi-2.rss"
+          "source": "Nhân Dân",
+          "url": "https://nhandan.vn/rss/xahoi-1211.rss"
         },
         {
-          "source": "VOV",
-          "url": "https://vov.vn/rss/xa-hoi.rss"
+          "source": "Báo Tin tức",
+          "url": "https://baotintuc.vn/rss/xa-hoi-129.rss"
         },
         {
-          "source": "VietnamPlus",
-          "url": "https://www.vietnamplus.vn/rss/xahoi-314.rss"
+          "source": "Báo Chính phủ",
+          "url": "https://baochinhphu.vn/xa-hoi.rss"
+        },
+        {
+          "source": "CAND",
+          "url": "https://cand.vn/rss/xa-hoi-1434.rss"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/xa-hoi.html"
+        },
+        {
+          "source": "Dân Trí",
+          "url": "https://dantri.com.vn/rss/doi-song.rss"
+        },
+        {
+          "source": "VnExpress",
+          "url": "https://vnexpress.net/rss/doi-song.rss"
         }
       ]
     },
@@ -87,16 +143,20 @@
       "name": "Khoa học Công nghệ",
       "feeds": [
         {
-          "source": "VnExpress",
-          "url": "https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss"
+          "source": "Nhân Dân",
+          "url": "https://nhandan.vn/rss/khoahoc-congnghe-1292.rss"
         },
         {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/khoa-hoc.rss"
+          "source": "Báo Tin tức",
+          "url": "https://baotintuc.vn/rss/khoa-hoc-cong-nghe-131.rss"
         },
         {
-          "source": "Thanh Niên",
-          "url": "https://thanhnien.vn/rss/cong-nghe.rss"
+          "source": "Báo Chính phủ",
+          "url": "https://baochinhphu.vn/khoa-hoc-cong-nghe.rss"
+        },
+        {
+          "source": "Pháp luật VN",
+          "url": "https://baophapluat.vn/chuyen-muc/tieu-dung-va-du-luan-the-gioi-cong-nghe.html"
         },
         {
           "source": "Dân Trí",
@@ -107,8 +167,8 @@
           "url": "https://dantri.com.vn/rss/khoa-hoc.rss"
         },
         {
-          "source": "VOV",
-          "url": "https://vov.vn/rss/cong-nghe.rss"
+          "source": "VnExpress",
+          "url": "https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss"
         }
       ]
     }

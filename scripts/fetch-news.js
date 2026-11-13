@@ -38,7 +38,39 @@ function parse(xml, source) {
     const rawDesc = decode(uncdata(tag(it, 'description')));
     const img = httpUrl(decode((rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i) || it.match(/<(?:enclosure|media:content|media:thumbnail)[^>]+url=["']([^"']+)["']/i) || [])[1] || '').trim());
     const ms = Date.parse(text(tag(it, 'pubDate')) || text(tag(it, 'dc:date')));
-    items.push({ t, u, s: source, d: Number.isFinite(ms) ? new Date(ms).toISOString() : null, sapo: text(rawDesc).slice(0, 600), img, pos: pos++ });
+    items.push({ t, u, s: source, d: Number.isFinite(ms) ? new Date(ms).toISOString() : null, sapo: text(rawDesc).replace(/^\([\p{L}.\s]{3,20}\)\s*[-–]\s*/u, '').slice(0, 600), img, pos: pos++ });
+  }
+  return items;
+}
+
+/* Báo không có RSS: đọc trang chuyên mục (các thẻ <article>), ngày đăng lấy từ sơ đồ tin của chính báo đó */
+const sitemapDates = new Map();
+async function newsDates(origin) {
+  if (!sitemapDates.has(origin)) {
+    sitemapDates.set(origin, (async () => {
+      const map = new Map();
+      try {
+        const xml = await get(origin + '/sitemaps/google-news.xml');
+        for (const m of xml.matchAll(/<url>[\s\S]*?<\/url>/gi)) { const loc = text(tag(m[0], 'loc')), d = Date.parse(text(tag(m[0], 'news:publication_date'))); if (loc && Number.isFinite(d)) map.set(loc, new Date(d).toISOString()); }
+      } catch (e) { /* không có sơ đồ tin: bài không kèm giờ đăng */ }
+      return map;
+    })());
+  }
+  return sitemapDates.get(origin);
+}
+async function parsePage(html, source, pageUrl) {
+  const origin = new URL(pageUrl).origin, dates = await newsDates(origin), items = [], seen = new Set();
+  let pos = 0;
+  for (const m of html.matchAll(/<article[\s>][\s\S]*?<\/article>/gi)) {
+    const a = m[0].match(/<a[^>]+href=["']([^"']+)["'][^>]*title=["']([^"']+)["']/i) || [];
+    let u = '';
+    try { u = httpUrl(new URL(decode(a[1] || ''), pageUrl).href); } catch (e) { /* bỏ */ }
+    const t = text(a[2] || '').slice(0, 220);
+    if (!t || !u || seen.has(u) || /\/chuyen-muc\//.test(u)) continue;
+    seen.add(u);
+    const img = httpUrl(decode((m[0].match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || '').replace(/\/w\d{3}\//, '/w640/'));
+    const p = m[0].match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    items.push({ t, u, s: source, d: dates.get(u) || null, sapo: p ? text(p[1]).slice(0, 600) : '', img, pos: pos++ });
   }
   return items;
 }
@@ -130,7 +162,8 @@ function original(phrase, title) {
       if (!f || !/^https:\/\//i.test(f.url || '')) return;
       const source = String(f.source || '').slice(0, 40);
       try {
-        const list = parse(await get(f.url), source).filter((x) => !x.d || (now - Date.parse(x.d) < 48 * HOUR && Date.parse(x.d) - now < HOUR));
+        const body = await get(f.url);
+        const list = (/<item[\s>]/i.test(body) ? parse(body, source) : await parsePage(body, source, f.url)).filter((x) => !x.d || (now - Date.parse(x.d) < 48 * HOUR && Date.parse(x.d) - now < HOUR));
         console.log(`✓ ${name} · ${source}: ${list.length} tin (${f.url.replace(/^https:\/\/[^/]+/, '')})`);
         if (list.length) bySource.set(source, [...(bySource.get(source) || []), ...list]);
       } catch (e) { console.log(`✗ ${name} · ${source}: ${e.message} (${f.url})`); }
