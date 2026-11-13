@@ -147,10 +147,11 @@ function bodyParagraphs(html) {
   const start = h.search(/itemprop=["']articleBody["']|class=["'][^"']*\b(article__body|fck_detail|singular-content|detail-content|entry-content|article-content|content-detail|detail__content|e-magazine__body)\b/i);
   if (start > 0) {
     h = h.slice(start);
-    const end = h.slice(400).search(/class=["'][^"']*\b(article__tag|article__foot|related[\w-]*|tin-lien-quan|comment[\w-]*|box-tinlienquan|article__meta)\b|<footer[\s>]/i);
+    const end = h.slice(400).search(/class=["'][^"']*\b(article__tag|article__foot|article__comment|box-comment|comment-box)\b|<footer[\s>]/i);
     if (end > 0) h = h.slice(0, end + 400);
   }
-  h = h.replace(/<(svg|figure|figcaption|table|header|footer|nav|aside|form|iframe|button|select|ul|ol|h[1-6])[\s>][\s\S]*?<\/\1>/gi, ' ');
+  h = h.replace(/<article[^>]*class=["'][^"']*\bstory\b[\s\S]*?<\/article>/gi, ' ') // từng mục trong khối "tin liên quan"
+    .replace(/<(svg|figure|figcaption|table|header|footer|nav|aside|form|iframe|button|select|ul|ol|h[1-6])[\s>][\s\S]*?<\/\1>/gi, ' ');
   const out = [];
   for (const m of h.matchAll(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/gi)) {
     if ((m[1].match(/<a[\s>]/gi) || []).length > 2) continue; // đoạn toàn liên kết
@@ -169,7 +170,7 @@ function keySentences(html, title, have, max = 4) {
   paras.slice(0, 22).forEach((para, pi) => {
     if (!/[.!?…]/.test(para)) return; // khối tiêu đề tin liên quan: không có dấu câu
     para.split(/(?<=[.!?…])\s+(?=[\p{Lu}"“(\d])/u).forEach((raw) => {
-      const sen = raw.trim().replace(/^[-–•*]\s*/, '');
+      const sen = raw.trim().replace(/^[-–•*]\s*/, '').replace(/^\([\p{L}.\s]{2,20}\)\s*[-–]\s*/u, '');
       if (sen.length < 60 || sen.length > 260 || !/[.!…”"')]$/.test(sen) || JUNK.test(sen)) return;
       const g = grams(sen).uni;
       if (g.size < 6) return;
@@ -264,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 3; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 4; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
