@@ -7,7 +7,8 @@ const KEEP = {
   P: ['style'], H2: [], H3: [], H4: [], STRONG: [], B: [], EM: [], I: [], U: [], SUB: [], SUP: [], BR: [],
   UL: [], OL: [], LI: [], BLOCKQUOTE: [], FIGURE: [], FIGCAPTION: [],
   TABLE: [], THEAD: [], TBODY: [], TR: [], TD: ['colspan', 'rowspan'], TH: ['colspan', 'rowspan'],
-  A: ['href'], IMG: ['src', 'alt'],
+  IMG: ['src', 'alt'],
+  // Thẻ <a> không nằm trong danh sách: liên kết trong bài bị gỡ, chỉ giữ lại phần chữ (hoặc ảnh) bên trong.
 };
 const BLOCKS = 'P,H2,H3,H4,UL,OL,BLOCKQUOTE,FIGURE,TABLE,DIV,SECTION,ARTICLE';
 
@@ -43,7 +44,7 @@ function cleanNode(node, doc) {
     for (const a of allowed) if (child.hasAttribute(a)) attrs[a] = child.getAttribute(a);
     for (const a of [...el.attributes]) el.removeAttribute(a.name);
     for (const [k, v] of Object.entries(attrs)) {
-      if (k === 'style') { if (/text-align\s*:\s*center/i.test(v)) el.setAttribute('style', 'text-align: center;'); continue; }
+      if (k === 'style') { const al = /text-align\s*:\s*(center|right)/i.exec(v); if (al) el.setAttribute('style', 'text-align: ' + al[1].toLowerCase() + ';'); continue; }
       if ((k === 'href' || k === 'src') && !safeUrl(v)) continue;
       el.setAttribute(k, v);
     }

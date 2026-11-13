@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Dẫn bài vào CMS",
-  "version": "1.12.0",
-  "description": "Dán link bài báo, tự bóc tách tiêu đề, sapo, nội dung và điền vào trang soạn bài của CMS.",
+  "name": "Dẫn bài vào CMS (PLQG + Bộ Tư pháp)",
+  "version": "2.1.0",
+  "description": "Dán link bài báo hoặc Google Docs, tự bóc tách bài rồi điền vào CMS Cổng Pháp luật quốc gia hoặc CMS Cổng thông tin điện tử Bộ Tư pháp.",
   "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
   "action": { "default_title": "Dẫn bài vào CMS" },

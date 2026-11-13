@@ -61,10 +61,25 @@ class NativeBridge(private val activity: MainActivity) {
         fetched.remove(key)
     }
 
-    // Hiện màn hình CMS (tải trang nếu chưa tải).
+    // Các màn hình CMS: 1 = CMS PLQG, 2 = CMS Moj, 3 = cửa sổ kho ảnh do CMS Moj mở ra.
+    // Chuyển sang tab CMS (tab tải trang mặc định nếu chưa tải).
     @JavascriptInterface
-    fun showCms(callbackId: String, url: String) {
-        activity.showCms(url)
+    fun showTab(callbackId: String, which: Int) {
+        activity.showCmsTab(which)
+        callback(callbackId, "{\"ok\":true}")
+    }
+
+    // Mở một địa chỉ trong màn hình CMS rồi chuyển sang tab đó.
+    @JavascriptInterface
+    fun loadCms(callbackId: String, which: Int, url: String) {
+        activity.loadCms(which, url)
+        callback(callbackId, "{\"ok\":true}")
+    }
+
+    // Tải lại trang CMS.
+    @JavascriptInterface
+    fun reloadCms(callbackId: String, which: Int) {
+        activity.reloadCms(which)
         callback(callbackId, "{\"ok\":true}")
     }
 
@@ -104,21 +119,29 @@ class NativeBridge(private val activity: MainActivity) {
 
     // Chạy một hàm (đã chuyển thành chuỗi mã) trong trang CMS, với các đối số dạng JSON.
     @JavascriptInterface
-    fun cmsRun(callbackId: String, code: String, argsJson: String) {
+    fun cmsRun(callbackId: String, which: Int, code: String, argsJson: String) {
         val id = JSONObject.quote(callbackId)
         val script = "(async()=>{try{const fn=($code);const r=await fn(...($argsJson));" +
             "AndroidCms.done($id, JSON.stringify(r===undefined?null:r));}" +
             "catch(e){AndroidCms.fail($id, String((e&&e.message)||e));}})();"
-        activity.runOnUiThread { activity.cmsWebView().evaluateJavascript(script, null) }
+        activity.runOnUiThread {
+            val web = activity.cmsWebView(which)
+            if (web == null) callback(callbackId, "{\"error\":\"Cửa sổ đã đóng\"}") else web.evaluateJavascript(script, null)
+        }
     }
 
-    // Nạp một tệp mã (cms-fill.js, cms-pick.js) vào trang CMS.
+    // Nạp một tệp mã (cms-fill.js, cms-pick.js, moj-cms.js) vào trang CMS.
     @JavascriptInterface
-    fun cmsEvalAsset(callbackId: String, name: String) {
+    fun cmsEvalAsset(callbackId: String, which: Int, name: String) {
         val text = activity.assets.open("app/$name").bufferedReader().use { it.readText() }
         activity.runOnUiThread {
-            activity.cmsWebView().evaluateJavascript(text, null)
-            callback(callbackId, "{\"ok\":true}")
+            val web = activity.cmsWebView(which)
+            if (web == null) {
+                callback(callbackId, "{\"error\":\"Cửa sổ đã đóng\"}")
+            } else {
+                web.evaluateJavascript(text, null)
+                callback(callbackId, "{\"ok\":true}")
+            }
         }
     }
 

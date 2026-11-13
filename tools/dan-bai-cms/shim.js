@@ -45,39 +45,76 @@
     },
   };
 
-  // ---- Tab CMS: chỉ có một tab, là màn hình CMS trong ứng dụng ----
-  const TAB_ID = 1;
-  const defaultCms = 'https://cms.phapluat.gov.vn/admin/content-articles/review';
-  const cmsSetting = () => readKey('cmsUrl2') || defaultCms;
-  const cmsOrigin = () => { try { return new URL(cmsSetting()).origin; } catch (e) { return new URL(defaultCms).origin; } };
-  let cmsUrl = '';
-  let cmsReady = false;
+  // ---- Tab CMS ----
+  // Ứng dụng có hai màn hình CMS, coi như hai tab: 1 = CMS PLQG, 2 = CMS Moj.
+  // Cửa sổ kho ảnh mà CMS Moj mở ra (khi bấm «Chọn ảnh mới») là một tab tạm, mã từ 3 trở lên.
+  const DEF = { 1: 'https://cms.phapluat.gov.vn/admin/content-articles/review', 2: 'https://moj.gov.vn/cms/nghiep-vu/quan-ly-tin-tuc/chinh-sua-bai-viet' };
+  const SET = { 1: 'cmsUrl2', 2: 'mojUrl' };
+  const setting = (w) => readKey(SET[w]) || DEF[w];
+  const originOf = (u) => { try { return new URL(u).origin; } catch (e) { return ''; } };
+  const state = { 1: { url: '', ready: false }, 2: { url: '', ready: false } };
+  let popup = null; // { id, url, ready }
   const listeners = [];
-  const tab = () => ({ id: TAB_ID, url: cmsUrl, status: cmsReady ? 'complete' : 'loading', windowId: 1, lastAccessed: Date.now() });
-  // Ứng dụng gọi hàm này khi trang CMS tải xong.
-  window.__cmsEvent = (ev) => {
+  const tabObj = (id) => {
+    if (state[id]) return { id, url: state[id].url, status: state[id].ready ? 'complete' : 'loading', windowId: 1, lastAccessed: Date.now() };
+    if (popup && popup.id === id) return { id, url: popup.url, status: popup.ready ? 'complete' : 'loading', windowId: 1, openerTabId: 2, lastAccessed: Date.now() };
+    return null;
+  };
+  // Màn hình (1, 2, hoặc 3 = cửa sổ kho ảnh) ứng với một mã tab.
+  const viewOf = (id) => {
+    if (state[id]) return id;
+    if (popup && popup.id === id) return 3;
+    throw new Error('Cửa sổ đã đóng');
+  };
+  // Ứng dụng gọi hàm này khi một trang CMS tải xong, đổi địa chỉ, hoặc cửa sổ kho ảnh mở/đóng.
+  window.__cmsEvent = (ev, id, url) => {
+    if (ev === 'popup-open') { popup = { id, url: url || '', ready: false }; return; }
+    if (ev === 'popup-closed') { if (popup && popup.id === id) popup = null; return; }
+    const t = state[id] || (popup && popup.id === id ? popup : null);
+    if (!t) return;
+    if (url) t.url = url;
     if (ev === 'loaded') {
-      cmsReady = true;
-      for (const f of listeners.slice()) { try { f(TAB_ID, { status: 'complete' }, tab()); } catch (e) { /* bỏ qua */ } }
+      t.ready = true;
+      for (const f of listeners.slice()) { try { f(id, { status: 'complete' }, tabObj(id)); } catch (e) { /* bỏ qua */ } }
     }
   };
 
   const tabs = {
-    query: async () => (cmsUrl && cmsReady ? [tab()] : []),
+    query: async () => {
+      // Hỏi lại địa chỉ hiện tại của từng trang CMS (trang một-trang đổi địa chỉ mà không tải lại, ví dụ sau khi lưu bài).
+      for (const w of [1, 2]) {
+        if (!state[w].url || !state[w].ready) continue;
+        try {
+          const r = await Promise.race([call('cmsRun', w, '(() => location.href)', '[]'), new Promise((res) => setTimeout(() => res(null), 1500))]);
+          if (r && typeof r.result === 'string' && /^https?:/.test(r.result)) state[w].url = r.result;
+        } catch (e) { /* giữ địa chỉ đã biết */ }
+      }
+      return [1, 2].filter((w) => state[w].url && state[w].ready).map(tabObj).concat(popup ? [tabObj(popup.id)] : []);
+    },
     create: async (props) => {
       const url = props && props.url;
       if (!url) throw new Error('Thiếu địa chỉ trang');
-      let origin = ''; try { origin = new URL(url).origin; } catch (e) { /* bỏ qua */ }
-      if (origin !== cmsOrigin()) throw new Error('Trên điện thoại không mở trang khác ở nền; hãy dùng link đã dán');
-      cmsUrl = url;
-      await call('showCms', url);
-      return tab();
+      const o = originOf(url);
+      const w = o && o === originOf(setting(2)) ? 2 : o && o === originOf(setting(1)) ? 1 : 0;
+      if (!w) throw new Error('Trên điện thoại không mở trang khác ở nền; hãy dùng link đã dán');
+      state[w].url = url; state[w].ready = false;
+      await call('loadCms', w, url);
+      return tabObj(w);
     },
     update: async (id, props) => {
-      if (props && props.active) await call('showCms', cmsUrl || cmsSetting());
-      return tab();
+      if (props && props.active) await call('showTab', viewOf(id) === 1 ? 1 : 2);
+      return tabObj(id);
     },
-    get: async () => tab(),
+    get: async (id) => {
+      const t = tabObj(id);
+      if (!t) throw new Error('Cửa sổ đã đóng');
+      return t;
+    },
+    reload: async (id) => {
+      if (!state[id]) return;
+      state[id].ready = false;
+      await call('reloadCms', id);
+    },
     remove: async () => {},
     getCurrent: async () => null,
     onUpdated: {
@@ -88,20 +125,22 @@
 
   // ---- Chèn mã vào trang CMS ----
   // Trang CMS phải hiện (có kích thước) thì mới tìm được nút và ô; hiện trước khi chèn mã, chờ bố cục xong.
-  let cmsShown = false;
-  const ensureCmsShown = async () => {
-    await call('showCms', cmsUrl || cmsSetting());
-    if (!cmsShown) { cmsShown = true; await new Promise((r) => setTimeout(r, 600)); }
+  let lastShown = 0;
+  const ensureShown = async (view) => {
+    const w = view === 1 ? 1 : 2;
+    await call('showTab', w);
+    if (lastShown !== w) { lastShown = w; await new Promise((r) => setTimeout(r, 600)); }
   };
   const scripting = {
     executeScript: async (opts) => {
-      await ensureCmsShown();
+      const view = viewOf(opts.target && opts.target.tabId);
+      await ensureShown(view);
       if (opts.files) {
-        for (const f of opts.files) await call('cmsEvalAsset', f);
+        for (const f of opts.files) await call('cmsEvalAsset', view, f);
         return [{ result: null }];
       }
       if (opts.func) {
-        const r = await call('cmsRun', '(' + opts.func.toString() + ')', JSON.stringify(opts.args || []));
+        const r = await call('cmsRun', view, '(' + opts.func.toString() + ')', JSON.stringify(opts.args || []));
         return [{ result: r.result === undefined ? null : r.result }];
       }
       return [];

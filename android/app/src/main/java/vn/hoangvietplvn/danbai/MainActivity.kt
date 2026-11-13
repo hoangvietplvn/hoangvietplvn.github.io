@@ -2,6 +2,7 @@ package vn.hoangvietplvn.danbai
 
 import android.net.Uri
 import android.os.Bundle
+import android.os.Message
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -18,21 +19,25 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebViewAssetLoader
+import org.json.JSONObject
 
-// Ba tab: «Kéo bài» (công cụ), «Kho ảnh» (ảnh tự tải về) và «CMS» (đăng nhập và điền bài).
+// Bốn tab: «Kéo bài» (công cụ), «Kho ảnh» (ảnh tự tải về), «PLQG» và «Moj» (đăng nhập CMS và điền bài).
+// Màn hình CMS được đánh số: 1 = CMS PLQG, 2 = CMS Moj, 3 = cửa sổ kho ảnh do CMS Moj mở ra.
 class MainActivity : ComponentActivity() {
 
     private lateinit var mainWeb: WebView
     private lateinit var khoWeb: WebView
-    private lateinit var cmsWeb: WebView
-    private lateinit var toolPane: FrameLayout
-    private lateinit var khoPane: FrameLayout
-    private lateinit var cmsPane: LinearLayout
-    private lateinit var barText: TextView
+    private lateinit var plqWeb: WebView
+    private lateinit var mojWeb: WebView
+    private lateinit var mojStack: FrameLayout
+    private lateinit var panes: Array<View>
+    private lateinit var bars: Array<TextView>
     private lateinit var tabs: Array<Button>
     private lateinit var native: NativeBridge
+    private var popupWeb: WebView? = null
+    private var popupId = 2
     private var currentTab = 0
-    private var cmsStarted = false
+    private val started = booleanArrayOf(false, false)
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     // Bộ chọn tệp của hệ thống: ứng dụng chỉ nhận tệp người dùng chọn, không cần quyền truy cập thư viện.
@@ -42,7 +47,13 @@ class MainActivity : ComponentActivity() {
     }
 
     fun mainWebView(): WebView = mainWeb
-    fun cmsWebView(): WebView = cmsWeb
+
+    fun cmsWebView(which: Int): WebView? = when (which) {
+        1 -> plqWeb
+        2 -> mojWeb
+        3 -> popupWeb
+        else -> null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,29 +62,43 @@ class MainActivity : ComponentActivity() {
 
         mainWeb = WebView(this)
         khoWeb = WebView(this)
-        cmsWeb = WebView(this)
-        toolPane = FrameLayout(this).apply { addView(mainWeb, FrameLayout.LayoutParams(fill, fill)) }
-        khoPane = FrameLayout(this).apply { addView(khoWeb, FrameLayout.LayoutParams(fill, fill)) }
-        barText = TextView(this).apply {
-            textSize = 13f
-            maxLines = 3
-            setPadding(24, 12, 24, 12)
+        plqWeb = WebView(this)
+        mojWeb = WebView(this)
+        native = NativeBridge(this)
+
+        val toolPane = FrameLayout(this).apply { addView(mainWeb, FrameLayout.LayoutParams(fill, fill)) }
+        val khoPane = FrameLayout(this).apply { addView(khoWeb, FrameLayout.LayoutParams(fill, fill)) }
+        bars = Array(2) {
+            TextView(this).apply {
+                textSize = 13f
+                maxLines = 3
+                setPadding(24, 12, 24, 12)
+            }
         }
-        cmsPane = LinearLayout(this).apply {
+        val plqPane = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(barText, LinearLayout.LayoutParams(fill, wrap))
-            addView(cmsWeb, LinearLayout.LayoutParams(fill, 0, 1f))
+            addView(bars[0], LinearLayout.LayoutParams(fill, wrap))
+            addView(plqWeb, LinearLayout.LayoutParams(fill, 0, 1f))
         }
+        // Cửa sổ kho ảnh của CMS Moj được đặt chồng lên trên màn hình CMS Moj.
+        mojStack = FrameLayout(this).apply { addView(mojWeb, FrameLayout.LayoutParams(fill, fill)) }
+        val mojPane = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(bars[1], LinearLayout.LayoutParams(fill, wrap))
+            addView(mojStack, LinearLayout.LayoutParams(fill, 0, 1f))
+        }
+        panes = arrayOf(toolPane, khoPane, plqPane, mojPane)
         val content = FrameLayout(this).apply {
-            addView(toolPane, FrameLayout.LayoutParams(fill, fill))
-            addView(khoPane, FrameLayout.LayoutParams(fill, fill))
-            addView(cmsPane, FrameLayout.LayoutParams(fill, fill))
+            panes.forEach { addView(it, FrameLayout.LayoutParams(fill, fill)) }
         }
-        tabs = arrayOf(
-            Button(this).apply { text = "Kéo bài"; setOnClickListener { selectTab(0) } },
-            Button(this).apply { text = "Kho ảnh"; setOnClickListener { selectTab(1) } },
-            Button(this).apply { text = "CMS"; setOnClickListener { selectTab(2) } },
-        )
+        val labels = arrayOf("Kéo bài", "Kho ảnh", "PLQG", "Moj")
+        tabs = Array(labels.size) { i ->
+            Button(this).apply {
+                text = labels[i]
+                setAllCaps(false)
+                setOnClickListener { selectTab(i) }
+            }
+        }
         val tabBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             tabs.forEach { addView(it, LinearLayout.LayoutParams(0, wrap, 1f)) }
@@ -96,8 +121,6 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                 request.url.host != "appassets.androidplatform.net"
         }
-
-        native = NativeBridge(this)
         for (w in listOf(mainWeb, khoWeb)) {
             w.settings.javaScriptEnabled = true
             w.settings.domStorageEnabled = true
@@ -107,12 +130,24 @@ class MainActivity : ComponentActivity() {
             w.addJavascriptInterface(native, "DanBaiNative")
         }
 
-        // Tab «CMS»: đăng nhập và cookie được giữ lại giữa các lần mở.
+        // Các màn hình CMS: đăng nhập và cookie được giữ lại giữa các lần mở.
         CookieManager.getInstance().setAcceptCookie(true)
-        cmsWeb.settings.javaScriptEnabled = true
-        cmsWeb.settings.domStorageEnabled = true
-        cmsWeb.addJavascriptInterface(CmsBridge(native), "AndroidCms")
-        cmsWeb.webChromeClient = object : WebChromeClient() {
+        setupCmsWeb(plqWeb, 1, false)
+        setupCmsWeb(mojWeb, 2, true)
+
+        mainWeb.loadUrl("https://appassets.androidplatform.net/assets/app/app.html")
+        khoWeb.loadUrl("https://appassets.androidplatform.net/assets/app/kho.html")
+        selectTab(0)
+    }
+
+    // Thiết lập một màn hình CMS. id là mã tab báo về cho công cụ; opensWindows = trang được phép mở cửa sổ con.
+    private fun setupCmsWeb(w: WebView, id: Int, opensWindows: Boolean) {
+        w.settings.javaScriptEnabled = true
+        w.settings.domStorageEnabled = true
+        w.settings.javaScriptCanOpenWindowsAutomatically = true
+        w.settings.setSupportMultipleWindows(opensWindows)
+        w.addJavascriptInterface(CmsBridge(native), "AndroidCms")
+        w.webChromeClient = object : WebChromeClient() {
             // Khi CMS mở ô chọn tệp (ví dụ khi bạn tải ảnh tay), dùng bộ chọn tệp của điện thoại.
             override fun onShowFileChooser(webView: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 fileCallback?.onReceiveValue(null)
@@ -120,39 +155,92 @@ class MainActivity : ComponentActivity() {
                 pickFiles.launch("*/*")
                 return true
             }
-        }
-        cmsWeb.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String?) {
-                mainWeb.evaluateJavascript("window.__cmsEvent && window.__cmsEvent('loaded');", null)
+
+            // CMS Moj mở cửa sổ kho ảnh khi bấm «Chọn ảnh mới»: tạo một màn hình con, giữ liên kết với trang mở nó.
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+                if (!opensWindows) return false
+                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                transport.webView = openPopup()
+                resultMsg.sendToTarget()
+                return true
+            }
+
+            override fun onCloseWindow(window: WebView) {
+                if (window === popupWeb) closePopup()
             }
         }
+        w.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String?) {
+                if (url != null && url.startsWith("http")) notifyCms("loaded", id, url)
+            }
 
-        mainWeb.loadUrl("https://appassets.androidplatform.net/assets/app/app.html")
-        khoWeb.loadUrl("https://appassets.androidplatform.net/assets/app/kho.html")
-        selectTab(0)
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                if (url != null && url.startsWith("http")) notifyCms("url", id, url)
+            }
+        }
     }
 
-    // Chọn tab (0 = Kéo bài, 1 = Kho ảnh, 2 = CMS). Tab CMS tải trang lần đầu khi được mở.
+    private fun openPopup(): WebView {
+        closePopup()
+        val id = ++popupId
+        val p = WebView(this)
+        popupWeb = p
+        setupCmsWeb(p, id, false)
+        mojStack.addView(p, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        notifyCms("popup-open", id, "")
+        return p
+    }
+
+    private fun closePopup() {
+        val p = popupWeb ?: return
+        popupWeb = null
+        mojStack.removeView(p)
+        mojStack.post { p.destroy() }
+        notifyCms("popup-closed", popupId, "")
+    }
+
+    // Báo cho công cụ (tab Kéo bài) biết trang CMS đã tải xong, đổi địa chỉ, hoặc cửa sổ kho ảnh mở/đóng.
+    private fun notifyCms(event: String, id: Int, url: String) {
+        val script = "window.__cmsEvent && window.__cmsEvent(${JSONObject.quote(event)}, $id, ${JSONObject.quote(url)});"
+        mainWeb.evaluateJavascript(script, null)
+    }
+
+    // Chọn tab (0 = Kéo bài, 1 = Kho ảnh, 2 = PLQG, 3 = Moj). Tab CMS tải trang lần đầu khi được mở.
     private fun selectTab(index: Int) {
         currentTab = index
-        toolPane.visibility = if (index == 0) View.VISIBLE else View.GONE
-        khoPane.visibility = if (index == 1) View.VISIBLE else View.GONE
-        cmsPane.visibility = if (index == 2) View.VISIBLE else View.GONE
+        panes.forEachIndexed { i, v -> v.visibility = if (i == index) View.VISIBLE else View.GONE }
         tabs.forEachIndexed { i, b -> b.alpha = if (i == index) 1f else 0.5f }
-        if (index == 2 && !cmsStarted) {
-            cmsStarted = true
-            cmsWeb.loadUrl(DEFAULT_CMS)
+        if (index == 2 && !started[0]) {
+            started[0] = true
+            plqWeb.loadUrl(DEFAULT_PLQ)
+        }
+        if (index == 3 && !started[1]) {
+            started[1] = true
+            mojWeb.loadUrl(DEFAULT_MOJ)
         }
     }
 
-    // Gọi từ công cụ: chuyển sang tab CMS (tải trang nếu chưa tải).
-    fun showCms(url: String) {
+    // Gọi từ công cụ: chuyển sang tab CMS (which: 1 = PLQG, 2 = Moj).
+    fun showCmsTab(which: Int) {
+        runOnUiThread { selectTab(if (which == 1) 2 else 3) }
+    }
+
+    // Gọi từ công cụ: mở một địa chỉ trong màn hình CMS rồi chuyển sang tab đó.
+    fun loadCms(which: Int, url: String) {
         runOnUiThread {
-            if (!cmsStarted) {
-                cmsStarted = true
-                cmsWeb.loadUrl(url)
-            }
-            selectTab(2)
+            val i = if (which == 1) 0 else 1
+            started[i] = true
+            if (which != 1) closePopup()
+            (if (which == 1) plqWeb else mojWeb).loadUrl(url)
+            selectTab(i + 2)
+        }
+    }
+
+    // Gọi từ công cụ: tải lại trang CMS (như bấm F5).
+    fun reloadCms(which: Int) {
+        runOnUiThread {
+            if (which != 1) closePopup()
+            (if (which == 1) plqWeb else mojWeb).reload()
         }
     }
 
@@ -162,21 +250,23 @@ class MainActivity : ComponentActivity() {
     }
 
     fun setBar(text: String) {
-        runOnUiThread { barText.text = text }
+        runOnUiThread { bars.forEach { it.text = text } }
     }
 
     @Deprecated("Dùng cho nút Quay lại của hệ thống")
     override fun onBackPressed() {
         when {
-            currentTab == 2 && cmsWeb.canGoBack() -> cmsWeb.goBack()
-            currentTab == 2 -> selectTab(0)
-            currentTab == 1 -> selectTab(0)
+            currentTab == 3 && popupWeb != null -> closePopup()
+            currentTab == 3 && mojWeb.canGoBack() -> mojWeb.goBack()
+            currentTab == 2 && plqWeb.canGoBack() -> plqWeb.goBack()
+            currentTab != 0 -> selectTab(0)
             mainWeb.canGoBack() -> mainWeb.goBack()
             else -> super.onBackPressed()
         }
     }
 
     companion object {
-        private const val DEFAULT_CMS = "https://cms.phapluat.gov.vn/admin/content-articles/review"
+        private const val DEFAULT_PLQ = "https://cms.phapluat.gov.vn/admin/content-articles/review"
+        private const val DEFAULT_MOJ = "https://moj.gov.vn/cms/nghiep-vu/quan-ly-tin-tuc/chinh-sua-bai-viet"
     }
 }
