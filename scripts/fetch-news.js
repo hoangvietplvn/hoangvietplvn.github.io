@@ -173,32 +173,25 @@ function original(phrase, title) {
   /* ---------- gợi ý đề tài ---------- */
   const topics = [], used = new Set();
   const refs = (list) => { const out = [], had = new Set(); for (const x of list) { if (had.has(x.s) || out.length >= 2) continue; had.add(x.s); out.push({ t: x.t, u: x.u, s: x.s }); } return out; };
-  // (1) cụm từ đang tăng tần suất nhưng chưa vào nhóm tin nóng
-  const RECENT = 10, stat = new Map();
-  for (const x of everything) for (const g of [...x.g.tri, ...x.g.bi]) {
-    if (GENERIC.has(g)) continue;
-    const s = stat.get(g) || stat.set(g, { g, recent: [], older: [] }).get(g);
-    (age(x) <= RECENT ? s.recent : s.older).push(x);
-  }
-  const rising = [...stat.values()].map((s) => {
-    const src = new Set(s.recent.map((x) => x.s));
-    const rate = (s.recent.length / RECENT) / ((s.older.length + 0.5) / (48 - RECENT));
-    const fresh = s.recent.filter((x) => !x.hot).length;
-    return { ...s, src, rate, score: src.size * 2 + s.recent.length + Math.min(rate, 6) * 0.5 + (s.g.split(' ').length === 3 ? 1.5 : 0) + fresh * 0.5 };
-  }).filter((s) => s.src.size >= 2 && s.recent.length >= 2 && s.rate >= 1.8 && s.recent.filter((x) => !x.hot).length >= s.recent.length * 0.6)
-    .sort((a, b) => b.score - a.score).slice(0, 60)
-    // cụm từ phải gắn với một sự việc cụ thể: có ít nhất hai báo viết về cùng một chuyện
-    .filter((s) => { const big = cluster(s.recent).sort((a, b) => b.length - a.length)[0]; s.core = big; return new Set(big.map((x) => x.s)).size >= 2 && big.length >= Math.max(2, s.recent.length * 0.4); });
-  for (const s of rising) {
+  // (1) sự việc vừa nổi lên: nhiều báo cùng đưa trong vài giờ gần đây nhưng chưa vào nhóm tin nóng
+  const FRESH = 8;
+  const short = (t) => (t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '…' : t);
+  const emerging = cluster(everything.filter((x) => !x.hot && x.d && age(x) <= FRESH)).map((cl) => {
+    const src = new Set(cl.map((x) => x.s)), newest = Math.min(...cl.map(age)), oldest = Math.max(...cl.map(age));
+    return { cl: cl.sort((a, b) => (b.d || '').localeCompare(a.d || '')), src, newest, oldest, score: src.size * 2 + cl.length * 0.5 + (newest < 1.5 ? 2 : newest < 3 ? 1 : 0) + (oldest < 4 ? 1 : 0) };
+  }).filter((c) => c.src.size >= 2).sort((a, b) => b.score - a.score);
+  const perCatRise = new Map();
+  const mins = (h) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} phút` : `${Math.round(h)} giờ`);
+  for (const c of emerging) {
     if (topics.length >= 4) break;
-    const list = [...s.core, ...s.recent.filter((x) => !s.core.includes(x))];
-    if (list.filter((x) => used.has(x.u)).length > list.length / 2) continue;
-    list.forEach((x) => used.add(x.u));
-    const cats = [...new Set(list.map((x) => x.cat))];
+    const x = c.cl[0];
+    if ((perCatRise.get(x.cat) || 0) >= 2) continue;
+    perCatRise.set(x.cat, (perCatRise.get(x.cat) || 0) + 1);
+    c.cl.forEach((y) => used.add(y.u));
     topics.push({
-      label: cap(original(s.g, (list.find((x) => x.g.bi.has(s.g) || x.g.tri.has(s.g)) || list[0]).t)), cat: cats[0], kind: 'rising',
-      why: `${s.src.size} báo cùng nhắc tới trong ${RECENT} giờ qua (${s.recent.length} bài)` + (s.older.length ? `, dày hơn hẳn so với hôm trước (${s.older.length} bài trong 38 giờ trước đó).` : ', trong khi trước đó chưa hề xuất hiện.') + (s.recent.some((x) => x.hot) ? '' : ' Chưa vào nhóm tin nóng nên còn dư địa để đi trước.'),
-      refs: refs(list),
+      label: short(x.t), cat: x.cat, kind: 'rising',
+      why: `${c.src.size} báo cùng đưa trong ${mins(Math.max(c.oldest, 1))} qua (${c.cl.length} bài), bài mới nhất cách đây ${mins(c.newest)}. Sự việc còn ở giai đoạn đầu và chưa vào nhóm 5 tin nóng, nên còn dư địa để đi trước.`,
+      refs: refs(c.cl),
     });
   }
   // (2) sự việc có mốc thời gian phía trước
@@ -213,8 +206,8 @@ function original(phrase, title) {
     if ((perCat.get(x.cat) || 0) >= 1) continue;
     perCat.set(x.cat, 1);
     topics.push({
-      label: x.t.length > 90 ? x.t.slice(0, 88).replace(/\s+\S*$/, '') + '…' : x.t, cat: x.cat, kind: 'upcoming',
-      why: `Có mốc phía trước: “${c.hit.m[0].trim().slice(0, 70)}”. ${c.src.size > 1 ? c.src.size + ' báo đã đưa tin; đ' : 'Đ'}ề tài kiểu này thường nóng lại khi đến hạn hoặc khi có quyết định chính thức.`,
+      label: short(x.t), cat: x.cat, kind: 'upcoming',
+      why: `Có mốc phía trước: “${c.hit.m[0].trim().replace(/\s+\S*$/, (w) => (c.hit.m[0].trim().length >= 40 ? '' : w))}”. ${c.src.size > 1 ? c.src.size + ' báo đã đưa tin; đ' : 'Đ'}ề tài kiểu này thường nóng lại khi đến hạn hoặc khi có quyết định chính thức.`,
       refs: refs(c.cl),
     });
   }
