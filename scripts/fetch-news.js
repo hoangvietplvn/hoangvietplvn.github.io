@@ -138,6 +138,47 @@ function numbers(title, sapo) {
   return out;
 }
 
+/* Rút thêm ý chính từ thân bài: đọc trang bài báo, lấy các đoạn văn, chấm điểm từng câu
+   (có con số, nhắc lại từ khoá của tiêu đề, nằm ở phần đầu bài) và giữ nguyên văn vài câu cao điểm nhất. */
+const JUNK = /©|bản quyền|giấy phép|tổng biên tập|tòa soạn|toà soạn|liên hệ quảng cáo|đường dây nóng|hotline|email:|điện thoại:|tải ứng dụng|theo dõi (chúng tôi|báo)|đăng ký nhận|chia sẻ bài viết|bình luận|xem thêm|đọc thêm|tin liên quan|mời (quý|bạn đọc)|ảnh:|nguồn:|video:|clip:|đồ họa:|click|bấm vào|quét mã|trụ sở|ghi rõ nguồn/iu;
+function bodyParagraphs(html) {
+  let h = html.replace(/<(script|style|noscript|svg|figure|figcaption|table|header|footer|nav|aside|form|iframe|button|select|ul|ol)[\s>][\s\S]*?<\/\1>/gi, ' ');
+  const out = [];
+  for (const m of h.matchAll(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/gi)) {
+    if ((m[1].match(/<a[\s>]/gi) || []).length > 2) continue; // đoạn toàn liên kết
+    const t = text(m[1]);
+    if (t.length < 70 || t.length > 900 || JUNK.test(t)) continue;
+    out.push(t);
+  }
+  return out;
+}
+function keySentences(html, title, have, max = 4) {
+  const paras = bodyParagraphs(html);
+  if (paras.length < 3) return [];
+  const tw = grams(title).uni, haveSets = have.map((x) => grams(x).uni);
+  const cands = [];
+  paras.slice(0, 30).forEach((para, pi) => {
+    para.split(/(?<=[.!?…])\s+(?=[\p{Lu}"“(\d])/u).forEach((raw) => {
+      const sen = raw.trim();
+      if (sen.length < 60 || sen.length > 260 || /[?:]$/.test(sen) || JUNK.test(sen)) return;
+      const g = grams(sen).uni;
+      if (g.size < 6) return;
+      if (haveSets.some((hs) => shared(g, hs) / Math.min(g.size, hs.size || 1) > 0.6)) return; // đã có trong sapo
+      const nums = (sen.match(/\d[\d.,]*/g) || []).length;
+      const score = Math.min(nums, 2) * 1.2 + Math.min(shared(g, tw), 4) * 0.6 + (pi < 3 ? 1.5 : pi < 7 ? 0.8 : pi < 12 ? 0.3 : 0) + (/["“”]/.test(sen) ? 0.4 : 0) + (/^(theo|trước đó|hiện|đến nay|cơ quan|kết quả|nguyên nhân|dự kiến)/iu.test(sen) ? 0.4 : 0) - (sen.length > 220 ? 0.5 : 0);
+      cands.push({ sen, g, pi, score, i: cands.length });
+    });
+  });
+  const pick = [];
+  for (const c of [...cands].sort((a, b) => b.score - a.score)) {
+    if (pick.length >= max) break;
+    if (pick.filter((x) => x.pi === c.pi).length >= 1) continue; // mỗi đoạn một câu, để ý trải khắp bài
+    if (pick.some((x) => shared(x.g, c.g) / Math.min(x.g.size, c.g.size) > 0.5)) continue;
+    pick.push(c);
+  }
+  return pick.sort((a, b) => a.i - b.i).map((x) => x.sen);
+}
+
 const FUTURE = /(từ (?:ngày )?\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|từ (?:tháng|năm|quý) [\dIV]+(?:[/-]\d{4})?|(?:trong |đầu |cuối |đến )?năm 20(?:2[7-9]|3\d)|sắp (?:tới|diễn ra|có hiệu lực|được|ra mắt|áp dụng|xét xử|khởi công|thông xe|vận hành)|dự kiến [^,.;]{3,40}|đề xuất [^,.;]{3,40}|dự thảo [^,.;]{3,40}|lấy ý kiến [^,.;]{3,40}|trình Quốc hội|có hiệu lực [^,.;]{0,30}|sẽ (?:được |bị |chính thức |bắt đầu |áp dụng |xét xử |diễn ra |tăng |giảm |cấm |thí điểm )[^,.;]{0,40})/iu;
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /* lấy lại cách viết hoa gốc của cụm từ trong tiêu đề */
@@ -193,7 +234,7 @@ function original(phrase, title) {
       const rep = [...cl].sort((a, b) => (b.img ? 1 : 0) + (b.sapo.length > 60 ? 1 : 0) - ((a.img ? 1 : 0) + (a.sapo.length > 60 ? 1 : 0)) || (b.d || '').localeCompare(a.d || ''))[0];
       return { cl, sources, score, rep, cat: name };
     }).sort((a, b) => b.score - a.score);
-    stories.push(...clusters.filter((c) => c.sources.size >= 2).slice(0, 12));
+    stories.push(...clusters.slice(0, 25));
     clusters.length = Math.min(clusters.length, 5);
     for (const c of clusters) c.cl.forEach((x) => { x.hot = true; });
     const hot = clusters.map(({ cl, sources, rep }) => {
@@ -205,6 +246,29 @@ function original(phrase, title) {
     categories.push({ name, items, hot });
   }
   if (!categories.length) { console.log('Không lấy được tin nào — khu tin sẽ ẩn.'); fs.rmSync(OUT, { force: true }); return; }
+
+  /* Bản đang đăng trên trang: dùng lại phần tóm tắt thân bài đã có (khỏi tải lại bài báo) và cụm gợi ý đề tài chưa đến giờ đổi */
+  let prev = {};
+  try {
+    const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
+    prev = JSON.parse(await get(site + '/news.json?t=' + now));
+  } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
+  const done = new Map();
+  for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
+  let fetched = 0, reused = 0, failed = 0;
+  await Promise.all(categories.flatMap((c) => c.hot.map(async (h) => {
+    const old = done.get(h.u);
+    if (old) { h.p = old.p; h.nums = old.nums || h.nums; h.x = 1; reused++; return; }
+    try {
+      const extra = keySentences(await get(h.u), h.t, h.p);
+      if (!extra.length) { failed++; console.log(`  ✗ không rút được ý từ thân bài: ${h.s} — ${h.u}`); return; }
+      h.p = [...h.p.slice(0, 2), ...extra];
+      h.nums = numbers(h.t, h.p.join(' '));
+      h.x = 1; fetched++;
+    } catch (e) { failed++; console.log(`  ✗ không tải được bài: ${h.s} — ${e.message}`); }
+  })));
+  console.log(`  Tóm tắt thân bài: ${fetched} bài mới, ${reused} bài dùng lại, ${failed} bài không rút được`);
+  if (process.env.NEWS_DEBUG || fetched) { const one = categories.flatMap((c) => c.hot).filter((h) => h.x && !done.has(h.u)).slice(0, 7); for (const h of one) console.log(`   ▸ ${h.s}: ${h.t}\n` + h.p.map((x) => '       - ' + x.slice(0, 150)).join('\n')); }
 
   /* ---------- gợi ý đề tài: góc chưa báo nào khai thác ----------
      Với mỗi sự việc đang được nhiều báo đưa, đối chiếu tiêu đề + phần mở đầu của tất cả các bài
@@ -233,26 +297,40 @@ function original(phrase, title) {
     { id: 'rui-ro-so', name: 'Rủi ro pháp lý số', q: 'Rủi ro pháp lý, dữ liệu cá nhân và trách nhiệm của nền tảng nằm ở đâu?', what: 'rủi ro pháp lý hay dữ liệu cá nhân',
       has: /pháp lý|quyền riêng tư|dữ liệu cá nhân|bản quyền|trách nhiệm|rủi ro|an toàn thông tin|bảo mật|lừa đảo|quy định/iu, fit: (c) => /\bai\b|trí tuệ nhân tạo|chatbot|ứng dụng|nền tảng|mạng xã hội|dữ liệu|robot|camera|định danh|sinh trắc|tài sản số|tiền số|blockchain/iu.test(c.text), cats: ['Khoa học Công nghệ'] },
   ];
-  const topics = [], perCat = new Map(), perAngle = new Map();
-  const pool = stories.map((c) => ({ ...c, text: c.cl.map((x) => x.t + '. ' + x.sapo).join(' \n ') })).sort((a, b) => b.score - a.score);
-  for (const round of [1, 2]) { // lượt 1: mỗi góc dùng một lần; lượt 2: cho phép lặp góc
-    for (const c of pool) {
-      if (topics.length >= 6) break;
-      if (c.used || (perCat.get(c.cat) || 0) >= 2) continue;
-      if (pool.some((o) => o.used && o !== c && sameStory(o.rep, c.rep))) continue; // cùng sự việc ở mục khác
-      const angle = ANGLES.find((a) => a.cats.includes(c.cat) && (perAngle.get(a.id) || 0) < round && a.fit(c) && !a.has.test(c.text));
-      if (!angle) continue;
-      c.used = true;
-      perCat.set(c.cat, (perCat.get(c.cat) || 0) + 1); perAngle.set(angle.id, (perAngle.get(angle.id) || 0) + 1);
-      topics.push({
-        angle: angle.name, q: angle.q, cat: c.cat, n: c.sources.size, k: c.cl.length,
-        story: { t: c.rep.t, u: c.rep.u, s: c.rep.s },
-        why: `${c.sources.size} báo đã đăng ${c.cl.length} bài về sự việc này, nhưng chưa bài nào nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc đang được theo dõi rộng, nên một bài đi riêng góc này có chỗ đứng.`,
-      });
+  const withText = stories.map((c) => ({ ...c, text: c.cl.map((x) => x.t + '. ' + x.sapo).join(' \n ') }));
+  function suggest() {
+    const out = [], taken = [];
+    for (const cat of categories) {
+      const pool = withText.filter((c) => c.cat === cat.name).sort((a, b) => b.sources.size - a.sources.size || b.score - a.score);
+      const items = [], usedAngles = new Set();
+      for (const minSrc of [2, 1]) for (const c of pool) { // ưu tiên sự việc nhiều báo đưa; thiếu thì lấy cả sự việc mới có một báo
+        if (items.length >= 3) break;
+        if (c.used || c.sources.size < minSrc || taken.some((o) => sameStory(o.rep, c.rep))) continue;
+        const angle = ANGLES.find((a) => a.cats.includes(c.cat) && !usedAngles.has(a.id) && a.fit(c) && !a.has.test(c.text));
+        if (!angle) continue;
+        c.used = true; taken.push(c); usedAngles.add(angle.id);
+        const n = c.sources.size, k = c.cl.length;
+        items.push({
+          angle: angle.name, q: angle.q, n, k, story: { t: c.rep.t, u: c.rep.u, s: c.rep.s },
+          why: n > 1
+            ? `${n} báo đã đăng ${k} bài về sự việc này, nhưng chưa bài nào nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc đang được theo dõi rộng, nên một bài đi riêng góc này có chỗ đứng.`
+            : `Mới có ${c.rep.s} đưa tin, và bài chưa nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc còn mới, đi trước góc này sẽ không trùng ai.`,
+        });
+      }
+      if (items.length) out.push({ name: cat.name, items });
     }
+    return out;
   }
-  console.log('  Gợi ý đề tài:\n' + topics.map((t) => `   · [${t.angle}] ${t.q}\n       ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n'));
+  // Mốc đổi: 12:00 và 21:00 giờ Việt Nam (05:00 và 14:00 UTC). Giữa hai mốc thì giữ nguyên cụm gợi ý đang đăng.
+  const SLOTS = [5, 14], day = 24 * HOUR, base = Math.floor(now / day) * day;
+  const marks = [-1, 0, 1].flatMap((d) => SLOTS.map((h) => base + d * day + h * HOUR)).sort((a, b) => a - b);
+  const lastMark = Math.max(...marks.filter((m) => m <= now)), nextMark = Math.min(...marks.filter((m) => m > now));
+  const old = prev.topics;
+  const keep = old && Array.isArray(old.cats) && old.cats.length && Date.parse(old.at) >= lastMark && !process.env.NEWS_FORCE_TOPICS;
+  const topics = keep ? { ...old, next: new Date(nextMark).toISOString() } : { at: new Date().toISOString(), next: new Date(nextMark).toISOString(), cats: suggest() };
+  const nTopics = topics.cats.reduce((n, c) => n + c.items.length, 0);
+  console.log(`  Gợi ý đề tài (${keep ? 'giữ bản lúc ' + old.at : 'tạo mới'}; lần đổi tới ${topics.next}):\n` + topics.cats.map((c) => `   ${c.name}:\n` + c.items.map((t) => `     · [${t.angle}] ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n')).join('\n'));
 
   fs.writeFileSync(OUT, JSON.stringify({ updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics }));
-  console.log(`→ static/news.json: ${categories.map((c) => `${c.name} ${c.items.length}/${c.hot.length}`).join(', ')}; ${topics.length} gợi ý; ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
+  console.log(`→ static/news.json: ${categories.map((c) => `${c.name} ${c.items.length}/${c.hot.length}`).join(', ')}; ${nTopics} gợi ý; ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
 })().catch((e) => { console.log('Lỗi lấy tin: ' + (e.stack || e.message)); });

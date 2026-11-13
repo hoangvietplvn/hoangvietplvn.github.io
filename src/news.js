@@ -72,7 +72,7 @@
     }
     art.append(body);
     const ft = el('footer', 'info-foot');
-    ft.append(ext(it, 'info-cta', 'Xem toàn bộ nội dung →'), el('p', 'info-note', `Tóm tắt tự động từ tiêu đề và phần mở đầu của bài trên ${it.s}. Độ nóng tính theo số báo cùng đưa tin, không phải lượt xem.`));
+    ft.append(ext(it, 'info-cta', 'Xem toàn bộ nội dung →'), el('p', 'info-note', (it.x ? `Tóm tắt tự động: máy trích nguyên văn các câu chính trong bài trên ${it.s}.` : `Tóm tắt tự động từ tiêu đề và phần mở đầu của bài trên ${it.s}.`) + ' Độ nóng tính theo số báo cùng đưa tin, không phải lượt xem.'));
     art.append(ft);
     dlg.className = 'info'; dlg.replaceChildren(art);
     dlg.showModal(); dlg.scrollTop = 0;
@@ -98,22 +98,30 @@
   cats.forEach((c, i) => { const b = el('button', 'hub-tab', c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', () => render(i)); tabs.append(b); });
   render(0);
 
-  /* ---- gợi ý đề tài: góc chưa báo nào khai thác ---- */
-  const topics = (data.topics || []).filter((x) => x && x.q && x.why && x.story);
-  if (topics.length) {
+  /* ---- gợi ý đề tài: góc chưa báo nào khai thác, chia theo mục, đổi lúc 12:00 và 21:00 ---- */
+  const tcats = ((data.topics || {}).cats || []).filter((c) => c && Array.isArray(c.items) && c.items.length);
+  if (tcats.length) {
     const sec = el('section', 'hub-topics');
     const hd = el('div', 'topics-head');
-    hd.append(el('h2', 'hub-title', 'Đề tài chưa báo nào khai thác'), el('p', '', 'Góc tiếp cận mới cho những sự việc đang được nhiều báo theo dõi.'));
+    const hm = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? `${p2(d.getHours())}:${p2(d.getMinutes())} ngày ${p2(d.getDate())}/${p2(d.getMonth() + 1)}` : ''; };
+    const stamp = [data.topics.at && `Bản lúc ${hm(data.topics.at)}`, data.topics.next && `đổi tiếp lúc ${hm(data.topics.next)}`].filter(Boolean).join(' · ');
+    hd.append(el('h2', 'hub-title', 'Đề tài chưa báo nào khai thác'), el('p', '', 'Góc tiếp cận mới cho những sự việc các báo đang đưa. Đổi hai lần mỗi ngày, lúc 12:00 và 21:00.'));
+    const ttabs = el('div', 'hub-tabs topic-tabs'); ttabs.setAttribute('role', 'tablist');
     const grid = el('div', 'topic-grid');
-    topics.forEach((tp) => {
-      const c = el('article', 'topic');
-      const tags = el('p', 'topic-tags'); tags.append(el('span', 'kind', tp.angle || 'Góc mới'), el('span', '', tp.cat || ''));
-      const from = el('p', 'topic-from'); from.append(el('b', '', 'Từ sự việc: '), ext(tp.story), el('span', '', ' — ' + tp.story.s));
-      const why = el('p', 'topic-why'); why.append(el('b', '', 'Vì sao: '), document.createTextNode(tp.why));
-      c.append(tags, el('h3', '', tp.q), from, why);
-      grid.append(c);
-    });
-    sec.append(hd, grid, el('p', 'topics-note', 'Gợi ý tạo tự động: máy đối chiếu tiêu đề và phần mở đầu của các bài đã đăng với một bộ góc khai thác có sẵn. Nên kiểm tra lại nội dung đầy đủ của các bài trước khi triển khai.'));
+    const show = (ci) => {
+      [...ttabs.children].forEach((b, k) => b.setAttribute('aria-selected', k === ci ? 'true' : 'false'));
+      grid.replaceChildren(...tcats[ci].items.map((tp) => {
+        const c = el('article', 'topic');
+        const tags = el('p', 'topic-tags'); tags.append(el('span', 'kind', tp.angle || 'Góc mới'), el('span', '', tp.n > 1 ? `${tp.n} báo đang đưa` : 'Tin mới'));
+        const from = el('p', 'topic-from'); from.append(el('b', '', 'Từ sự việc: '), ext(tp.story), el('span', '', ' — ' + tp.story.s));
+        const why = el('p', 'topic-why'); why.append(el('b', '', 'Vì sao: '), document.createTextNode(tp.why));
+        c.append(tags, el('h3', '', tp.q), from, why);
+        return c;
+      }));
+    };
+    tcats.forEach((c, i) => { const b = el('button', 'hub-tab', c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', () => show(i)); ttabs.append(b); });
+    show(0);
+    sec.append(hd, ttabs, grid, el('p', 'topics-note', (stamp ? stamp + '. ' : '') + 'Gợi ý tạo tự động: máy đối chiếu tiêu đề và phần mở đầu của các bài đã đăng với một bộ góc khai thác có sẵn. Nên kiểm tra lại nội dung đầy đủ của các bài trước khi triển khai.'));
     wrap.append(sec);
   }
   hub.append(wrap, dlg);
