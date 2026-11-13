@@ -38,7 +38,7 @@ function parse(xml, source) {
     const rawDesc = decode(uncdata(tag(it, 'description')));
     const img = httpUrl(decode((rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i) || it.match(/<(?:enclosure|media:content|media:thumbnail)[^>]+url=["']([^"']+)["']/i) || [])[1] || '').trim());
     const ms = Date.parse(text(tag(it, 'pubDate')) || text(tag(it, 'dc:date')));
-    items.push({ t, u, s: source, d: Number.isFinite(ms) ? new Date(ms).toISOString() : null, sapo: text(rawDesc).replace(/^\([\p{L}.\s]{3,20}\)\s*[-–]\s*/u, '').slice(0, 600), img, pos: pos++ });
+    items.push({ t, u, s: source, d: Number.isFinite(ms) ? new Date(ms).toISOString() : null, sapo: text(rawDesc.replace(/<(ul|ol|table)[\s>][\s\S]*?<\/\1>/gi, ' ').replace(/<a[\s>][\s\S]*?<\/a>/gi, ' ')).replace(/^\([\p{L}.\s]{3,20}\)\s*[-–]\s*/u, '').slice(0, 600), img, pos: pos++ });
   }
   return items;
 }
@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 4; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 5; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
