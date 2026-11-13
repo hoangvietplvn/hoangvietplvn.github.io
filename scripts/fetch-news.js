@@ -97,7 +97,9 @@ function grams(title) {
   }
   return { uni, bi, tri };
 }
-const shared = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n; };
+// cụm từ quá phổ biến: không được tính là dấu hiệu hai bài nói về cùng một sự việc
+const GENERIC = new Set(['việt nam', 'hà nội', 'tp hcm', 'thành phố', 'tổng thống', 'thủ tướng', 'bộ trưởng', 'công an', 'chủ tịch', 'tổng bí', 'bí thư', 'quốc hội', 'chính phủ', 'trung quốc', 'đà nẵng', 'thế giới', 'hồ chí', 'chí minh', 'khoa học', 'công nghệ', 'học công', 'pháp luật', 'xã hội', 'quốc tế', 'thời sự', 'người dân', 'hợp tác', 'phát triển', 'đại biểu', 'ủy ban', 'nhân dân', 'ban nhân', 'ubnd tỉnh', 'chuyển đổi', 'đổi số', 'doanh nghiệp', 'kinh tế', 'giao thông', 'quan hệ', 'đồng chí', 'lãnh đạo', 'triển khai', 'thực hiện', 'tổ chức', 'hội nghị', 'tăng cường', 'bảo đảm', 'đẩy mạnh']);
+const shared = (a, b) => { let n = 0; for (const x of a) if (b.has(x) && !GENERIC.has(x)) n++; return n; };
 const sameStory = (a, b) => {
   const sb = shared(a.g.bi, b.g.bi);
   if (sb >= 2) return true;
@@ -137,7 +139,6 @@ function numbers(title, sapo) {
 }
 
 const FUTURE = /(từ (?:ngày )?\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|từ (?:tháng|năm|quý) [\dIV]+(?:[/-]\d{4})?|(?:trong |đầu |cuối |đến )?năm 20(?:2[7-9]|3\d)|sắp (?:tới|diễn ra|có hiệu lực|được|ra mắt|áp dụng|xét xử|khởi công|thông xe|vận hành)|dự kiến [^,.;]{3,40}|đề xuất [^,.;]{3,40}|dự thảo [^,.;]{3,40}|lấy ý kiến [^,.;]{3,40}|trình Quốc hội|có hiệu lực [^,.;]{0,30}|sẽ (?:được |bị |chính thức |bắt đầu |áp dụng |xét xử |diễn ra |tăng |giảm |cấm |thí điểm )[^,.;]{0,40})/iu;
-const GENERIC = new Set(['việt nam', 'hà nội', 'tp hcm', 'thành phố', 'tổng thống', 'thủ tướng', 'bộ trưởng', 'công an', 'chủ tịch', 'tổng bí', 'bí thư', 'quốc hội', 'chính phủ', 'trung quốc', 'đà nẵng', 'thế giới', 'hồ chí', 'chí minh', 'hồ chí minh', 'tổng bí thư', 'bí thư chủ', 'chủ tịch nước']);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /* lấy lại cách viết hoa gốc của cụm từ trong tiêu đề */
 function original(phrase, title) {
