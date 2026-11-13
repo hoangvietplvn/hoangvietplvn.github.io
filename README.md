@@ -75,3 +75,5 @@ Mở `https://hoangvietplvn.github.io/admin/` và đăng nhập bằng mã truy 
 ## Thanh điểm tin đầu trang
 
 Mỗi giờ, GitHub Actions chạy `scripts/fetch-news.js` để lấy tiêu đề mới từ các nguồn RSS khai báo trong `news.config.json`, rồi dựng lại trang. Bật/tắt, đổi nhãn, thêm bớt mục và nguồn tin trong trang quản trị: **Cài đặt trang → Thanh điểm tin đầu trang**. Nguồn nào lỗi thì tự bỏ qua; không lấy được tin nào thì thanh tự ẩn.
+
+Ở trang nhất, thanh điểm tin được thay bằng khu **Tin nổi bật** (`src/news.js`): các mục tin, 5 tin nóng mỗi mục, infographic tóm tắt khi bấm vào tin, và cụm gợi ý đề tài. Độ nóng chấm theo số báo cùng đưa một sự việc (các báo không công bố lượt xem); tóm tắt lấy từ tiêu đề và sapo trong RSS.

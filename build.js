@@ -126,7 +126,7 @@ const pageList = (fs.existsSync(pagesDir) ? fs.readdirSync(pagesDir).filter((x) 
 
 /* Mã phiên bản gắn vào đường dẫn CSS/JS để trình duyệt không dùng bản cũ đã lưu */
 const VER = require('crypto').createHash('md5')
-  .update(fs.readFileSync(path.join(ROOT, 'src/styles.css'))).update(fs.readFileSync(path.join(ROOT, 'src/main.js')))
+  .update(fs.readFileSync(path.join(ROOT, 'src/styles.css'))).update(fs.readFileSync(path.join(ROOT, 'src/main.js'))).update(fs.readFileSync(path.join(ROOT, 'src/news.js')))
   .digest('hex').slice(0, 10);
 
 /* Thanh điểm tin đầu trang: bật/tắt trong news.config.json; dữ liệu do scripts/fetch-news.js lấy về */
@@ -159,8 +159,10 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 </head>
 <body class="${cls}">
 <div class="progress" aria-hidden="true"></div>
-${newsOn ? `<aside class="newsbar" data-src="${root}news.json" aria-label="Điểm tin" hidden></aside>` : ''}
-<header class="masthead">
+${newsOn ? (cls.split(' ').includes('home')
+    ? `<section class="hub" data-src="${root}news.json" aria-label="Tin nổi bật" hidden></section>`
+    : `<aside class="newsbar" data-src="${root}news.json" aria-label="Điểm tin" hidden></aside>`) : ''}
+<header class="masthead" id="blog">
   <div class="topline wrap">
     <span>${fmtDateLong(new Date())}</span>
     <span class="topline-mid">Blog cá nhân · Từ ${esc(cfg.established)}</span>
@@ -182,7 +184,7 @@ ${body}
     <p class="footnav"><a href="${root}luu-tru/">Lưu trữ</a> · ${pageList.map((p) => `<a href="${root}${p.url}">${esc(p.title)}</a> · `).join('')}<a href="${root}feed.xml">RSS</a> · <a href="${root}admin/" rel="nofollow">Quản trị</a></p>
   </div>
 </footer>
-<script src="${root}assets/main.js?v=${VER}" defer></script>
+<script src="${root}assets/main.js?v=${VER}" defer></script>${newsOn && cls.split(' ').includes('home') ? `\n<script src="${root}assets/news.js?v=${VER}" defer></script>` : ''}
 </body>
 </html>`;
 }
@@ -208,6 +210,7 @@ fs.rmSync(OUT, { recursive: true, force: true });
 copyDir(path.join(ROOT, 'static'), OUT);
 write('assets/styles.css', fs.readFileSync(path.join(ROOT, 'src/styles.css')));
 write('assets/main.js', fs.readFileSync(path.join(ROOT, 'src/main.js')));
+write('assets/news.js', fs.readFileSync(path.join(ROOT, 'src/news.js')));
 // Trang quản trị: chép bộ mã CMS vào dist/admin/
 {
   const cms = path.join(ROOT, 'node_modules/@sveltia/cms/dist');
