@@ -14,10 +14,13 @@ const OUT = path.join(ROOT, 'static/news.json');
 const HOUR = 3600e3;
 
 /* ---------- đọc RSS ---------- */
-const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', laquo: '«', raquo: '»', deg: '°', middot: '·', copy: '©', reg: '®', euro: '€' };
+// thực thể chữ có dấu kiểu &aacute; &Ocirc; &atilde; …
+const ACC = { acute: '\u0301', grave: '\u0300', circ: '\u0302', tilde: '\u0303', uml: '\u0308' };
+const named = (e) => { const m = e.match(/^([a-zA-Z])(acute|grave|circ|tilde|uml)$/); return m ? (m[1] + ACC[m[2]]).normalize('NFC') : e === 'ETH' || e === 'Dstrok' ? 'Đ' : e === 'eth' || e === 'dstrok' ? 'đ' : null; };
 const decode = (s) => s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e) => {
   if (e[0] === '#') { const n = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10); return Number.isFinite(n) && n > 0 && n < 0x10ffff ? String.fromCodePoint(n) : ''; }
-  return ENT[e.toLowerCase()] ?? m;
+  return named(e) ?? ENT[e.toLowerCase()] ?? m;
 });
 const uncdata = (s = '') => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
 const text = (s = '') => decode(decode(uncdata(s)).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
@@ -182,16 +185,19 @@ function original(phrase, title) {
     const rate = (s.recent.length / RECENT) / ((s.older.length + 0.5) / (48 - RECENT));
     const fresh = s.recent.filter((x) => !x.hot).length;
     return { ...s, src, rate, score: src.size * 2 + s.recent.length + Math.min(rate, 6) * 0.5 + (s.g.split(' ').length === 3 ? 1.5 : 0) + fresh * 0.5 };
-  }).filter((s) => s.src.size >= 2 && s.recent.length >= 2 && s.rate >= 1.8 && s.recent.some((x) => !x.hot)).sort((a, b) => b.score - a.score);
+  }).filter((s) => s.src.size >= 2 && s.recent.length >= 2 && s.rate >= 1.8 && s.recent.filter((x) => !x.hot).length >= s.recent.length * 0.6)
+    .sort((a, b) => b.score - a.score).slice(0, 60)
+    // cụm từ phải gắn với một sự việc cụ thể: có ít nhất hai báo viết về cùng một chuyện
+    .filter((s) => { const big = cluster(s.recent).sort((a, b) => b.length - a.length)[0]; s.core = big; return new Set(big.map((x) => x.s)).size >= 2 && big.length >= Math.max(2, s.recent.length * 0.4); });
   for (const s of rising) {
     if (topics.length >= 4) break;
-    const list = s.recent.sort((a, b) => (b.d || '').localeCompare(a.d || ''));
+    const list = [...s.core, ...s.recent.filter((x) => !s.core.includes(x))];
     if (list.filter((x) => used.has(x.u)).length > list.length / 2) continue;
     list.forEach((x) => used.add(x.u));
     const cats = [...new Set(list.map((x) => x.cat))];
     topics.push({
-      label: cap(original(s.g, list[0].t)), cat: cats[0], kind: 'rising',
-      why: `${s.src.size} báo cùng nhắc tới trong ${RECENT} giờ qua (${s.recent.length} bài)` + (s.older.length ? `, dày hơn hẳn so với hôm trước (${s.older.length} bài trong 38 giờ trước đó).` : ', trong khi trước đó chưa hề xuất hiện.') + ' Chưa vào nhóm tin nóng nên còn dư địa để đi trước.',
+      label: cap(original(s.g, (list.find((x) => x.g.bi.has(s.g) || x.g.tri.has(s.g)) || list[0]).t)), cat: cats[0], kind: 'rising',
+      why: `${s.src.size} báo cùng nhắc tới trong ${RECENT} giờ qua (${s.recent.length} bài)` + (s.older.length ? `, dày hơn hẳn so với hôm trước (${s.older.length} bài trong 38 giờ trước đó).` : ', trong khi trước đó chưa hề xuất hiện.') + (s.recent.some((x) => x.hot) ? '' : ' Chưa vào nhóm tin nóng nên còn dư địa để đi trước.'),
       refs: refs(list),
     });
   }

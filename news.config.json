@@ -91,36 +91,12 @@
           "url": "https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss"
         },
         {
-          "source": "VnExpress",
-          "url": "https://vnexpress.net/rss/khoa-hoc.rss"
-        },
-        {
-          "source": "VnExpress",
-          "url": "https://vnexpress.net/rss/so-hoa.rss"
-        },
-        {
           "source": "Tuổi Trẻ",
           "url": "https://tuoitre.vn/rss/khoa-hoc.rss"
         },
         {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/cong-nghe.rss"
-        },
-        {
-          "source": "Tuổi Trẻ",
-          "url": "https://tuoitre.vn/rss/nhip-song-so.rss"
-        },
-        {
           "source": "Thanh Niên",
           "url": "https://thanhnien.vn/rss/cong-nghe.rss"
-        },
-        {
-          "source": "VietnamNet",
-          "url": "https://vietnamnet.vn/rss/cong-nghe.rss"
-        },
-        {
-          "source": "VietnamNet",
-          "url": "https://vietnamnet.vn/rss/thong-tin-truyen-thong.rss"
         },
         {
           "source": "Dân Trí",
@@ -129,10 +105,6 @@
         {
           "source": "Dân Trí",
           "url": "https://dantri.com.vn/rss/khoa-hoc.rss"
-        },
-        {
-          "source": "VietnamPlus",
-          "url": "https://www.vietnamplus.vn/rss/khoahoc-331.rss"
         },
         {
           "source": "VOV",
