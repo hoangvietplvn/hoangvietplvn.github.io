@@ -178,13 +178,6 @@ ${cls.split(' ').includes('blog-off') ? '<noscript><style>.blog-off .masthead,.b
 <main>
 ${body}
 </main>
-<footer class="sitefoot">
-  <div class="wrap">
-    <a class="logo small" href="${root}">${esc(cfg.title)}</a>
-    <p>© ${new Date().getUTCFullYear()} ${esc(cfg.author)}. Mọi bài viết thuộc bản quyền của tác giả.</p>
-    <p class="footnav"><a href="${root}luu-tru/">Lưu trữ</a> · ${pageList.map((p) => `<a href="${root}${p.url}">${esc(p.title)}</a> · `).join('')}<a href="${root}feed.xml">RSS</a> · <a href="${root}admin/" rel="nofollow">Quản trị</a></p>
-  </div>
-</footer>
 <script src="${root}assets/main.js?v=${VER}" defer></script>${newsOn && cls.split(' ').includes('home') ? `\n<script src="${root}assets/news.js?v=${VER}" defer></script>` : ''}
 </body>
 </html>`;

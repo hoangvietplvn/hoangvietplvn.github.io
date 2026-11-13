@@ -495,3 +495,11 @@ figcaption { margin-top: 10px; font: 400 13px/1.5 var(--sans); color: var(--ink-
 /* Trang nhất khi tắt phần blog (homepage.json: show_blog = false) */
 .blog-off .masthead, .blog-off main, .blog-off .hub-toblog { display: none; }
 .blog-off .sitefoot { margin-top: 0; }
+
+/* Gợi ý đề tài: góc chưa khai thác */
+.topic-from { margin: 12px 0 0; font: 400 13.5px/1.5 var(--sans); color: var(--ink-3); }
+.topic-from b, .topic-why b { font: 600 11.5px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+.topic-from a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.topic-from a:hover { color: #d7141f; }
+.topics-note { margin: 18px 0 0; font: 400 12px/1.5 var(--sans); color: var(--ink-3); }
+.blog-off .hub { padding-bottom: 40px; }

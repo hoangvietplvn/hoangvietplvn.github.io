@@ -152,7 +152,7 @@ function original(phrase, title) {
   try { cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'news.config.json'), 'utf8')); } catch (e) { console.log('Không đọc được news.config.json — bỏ qua điểm tin.'); return; }
   if (!cfg.enabled) { console.log('Điểm tin đang tắt.'); fs.rmSync(OUT, { force: true }); return; }
   const per = Math.min(20, Math.max(1, +cfg.per_category || 8));
-  const now = Date.now(), categories = [], everything = [];
+  const now = Date.now(), categories = [], everything = [], stories = [];
   const age = (x) => (x.d ? (now - Date.parse(x.d)) / HOUR : 12);
   const slim = (x) => ({ t: x.t, u: x.u, s: x.s, d: x.d });
 
@@ -185,14 +185,16 @@ function original(phrase, title) {
     }
 
     // tin nóng: chấm điểm từng cụm bài cùng sự việc
-    const clusters = cluster(all.filter((x) => age(x) <= 30)).map((cl) => {
+    let clusters = cluster(all.filter((x) => age(x) <= 30)).map((cl) => {
       const sources = new Set(cl.map((x) => x.s));
       const newest = Math.min(...cl.map(age));
       const top = Math.min(...cl.map((x) => x.pos));
       const score = sources.size * 3 + Math.min(cl.length, 6) * 0.5 + (newest < 3 ? 2 : newest < 8 ? 1 : newest < 16 ? 0.3 : 0) + Math.max(0, (8 - top) / 8);
       const rep = [...cl].sort((a, b) => (b.img ? 1 : 0) + (b.sapo.length > 60 ? 1 : 0) - ((a.img ? 1 : 0) + (a.sapo.length > 60 ? 1 : 0)) || (b.d || '').localeCompare(a.d || ''))[0];
-      return { cl, sources, score, rep };
-    }).sort((a, b) => b.score - a.score).slice(0, 5);
+      return { cl, sources, score, rep, cat: name };
+    }).sort((a, b) => b.score - a.score);
+    stories.push(...clusters.filter((c) => c.sources.size >= 2).slice(0, 12));
+    clusters.length = Math.min(clusters.length, 5);
     for (const c of clusters) c.cl.forEach((x) => { x.hot = true; });
     const hot = clusters.map(({ cl, sources, rep }) => {
       const also = [], had = new Set([rep.s]);
@@ -204,48 +206,52 @@ function original(phrase, title) {
   }
   if (!categories.length) { console.log('Không lấy được tin nào — khu tin sẽ ẩn.'); fs.rmSync(OUT, { force: true }); return; }
 
-  /* ---------- gợi ý đề tài ---------- */
-  const topics = [], used = new Set();
-  const refs = (list) => { const out = [], had = new Set(); for (const x of list) { if (had.has(x.s) || out.length >= 2) continue; had.add(x.s); out.push({ t: x.t, u: x.u, s: x.s }); } return out; };
-  // (1) sự việc vừa nổi lên: nhiều báo cùng đưa trong vài giờ gần đây nhưng chưa vào nhóm tin nóng
-  const FRESH = 8;
-  const short = (t) => (t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '…' : t);
-  const emerging = cluster(everything.filter((x) => !x.hot && x.d && age(x) <= FRESH)).map((cl) => {
-    const src = new Set(cl.map((x) => x.s)), newest = Math.min(...cl.map(age)), oldest = Math.max(...cl.map(age));
-    return { cl: cl.sort((a, b) => (b.d || '').localeCompare(a.d || '')), src, newest, oldest, score: src.size * 2 + cl.length * 0.5 + (newest < 1.5 ? 2 : newest < 3 ? 1 : 0) + (oldest < 4 ? 1 : 0) };
-  }).filter((c) => c.src.size >= 2).sort((a, b) => b.score - a.score);
-  const perCatRise = new Map();
-  const mins = (h) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} phút` : `${Math.round(h)} giờ`);
-  for (const c of emerging) {
-    if (topics.length >= 4) break;
-    const x = c.cl[0];
-    if ((perCatRise.get(x.cat) || 0) >= 2) continue;
-    perCatRise.set(x.cat, (perCatRise.get(x.cat) || 0) + 1);
-    c.cl.forEach((y) => used.add(y.u));
-    topics.push({
-      label: short(x.t), cat: x.cat, kind: 'rising',
-      why: `${c.src.size} báo cùng đưa trong ${mins(Math.max(c.oldest, 1))} qua (${c.cl.length} bài), bài mới nhất cách đây ${mins(c.newest)}. Sự việc còn ở giai đoạn đầu và chưa vào nhóm 5 tin nóng, nên còn dư địa để đi trước.`,
-      refs: refs(c.cl),
-    });
+  /* ---------- gợi ý đề tài: góc chưa báo nào khai thác ----------
+     Với mỗi sự việc đang được nhiều báo đưa, đối chiếu tiêu đề + phần mở đầu của tất cả các bài
+     với một bộ "góc khai thác". Góc nào hợp với loại sự việc mà chưa bài nào chạm tới thì thành gợi ý. */
+  const INCIDENT = /nổ|cháy|sập|tai nạn|sạt lở|ngộ độc|sự cố|tử vong|thiệt mạng|bị thương|mất tích|lũ|ngập|đuối nước|rò rỉ/iu;
+  const CRIME = /bắt|khởi tố|truy tố|xét xử|tạm giam|tạm giữ|lừa đảo|đường dây|chiếm đoạt|tham ô|hối lộ|buôn lậu|hàng giả|cưỡng đoạt|sát hại|ma túy|đánh bạc|vi phạm/iu;
+  const POLICY = /luật|dự thảo|đề xuất|nghị định|nghị quyết|thông tư|chính sách|quy hoạch|thí điểm|đề án|thông qua|ban hành|có hiệu lực|phê duyệt|quy định mới|sửa đổi|lấy ý kiến/iu;
+  const PROJECT = /dự án|quy hoạch|đề án|chương trình|đầu tư|xây dựng|khởi công|di dời|tái thiết|hạ tầng|cao tốc|sân bay|đường sắt|metro/iu;
+  const ANGLES = [
+    { id: 'phap-ly', name: 'Góc pháp lý', q: 'Ai chịu trách nhiệm pháp lý và bồi thường, theo quy định nào?', what: 'trách nhiệm pháp lý hay việc bồi thường',
+      has: /trách nhiệm (pháp lý|hình sự|dân sự|bồi thường)|bồi thường|chế tài|mức phạt|khung hình phạt|luật sư|theo (điều|quy định|bộ luật)|xử lý (hình sự|trách nhiệm)/iu, fit: (c) => INCIDENT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Pháp luật', 'Khoa học Công nghệ'] },
+    { id: 'ke-ho', name: 'Kẽ hở quy định', q: 'Kẽ hở nào trong quy định đã bị lợi dụng, và cần vá ra sao?', what: 'kẽ hở hay bất cập của quy định hiện hành',
+      has: /lỗ hổng|kẽ hở|bất cập|khoảng trống pháp lý|sửa luật|cần sửa|hoàn thiện (pháp luật|quy định|thể chế)|kiến nghị/iu, fit: (c) => CRIME.test(c.text), cats: ['Pháp luật', 'Thời sự', 'Xã hội'] },
+    { id: 'tu-ve', name: 'Cẩm nang cho người dân', q: 'Người dân cần làm gì để nhận biết, phòng tránh và đòi quyền lợi?', what: 'hướng dẫn cụ thể cho người dân',
+      has: /cách (nhận biết|phòng|xử lý|đòi)|cần làm gì|nên làm gì|hướng dẫn|khuyến cáo|cảnh báo|lưu ý|dấu hiệu nhận biết|quyền lợi/iu, fit: (c) => /lừa đảo|chiếm đoạt|hàng giả|giả mạo|ngộ độc|cưỡng đoạt|tín dụng đen|đa cấp|mạo danh|deepfake|tấn công mạng|lộ dữ liệu/iu.test(c.text), cats: ['Pháp luật', 'Xã hội', 'Khoa học Công nghệ', 'Thời sự'] },
+    { id: 'quoc-te', name: 'So sánh quốc tế', q: 'Các nước đã xử lý vấn đề này thế nào, và bài học nào dùng được cho Việt Nam?', what: 'kinh nghiệm của các nước',
+      has: /kinh nghiệm (quốc tế|các nước|thế giới|nước ngoài)|các nước|nước ngoài|quốc tế|thế giới|so với khu vực|mô hình (của|từ)|nhật bản|hàn quốc|singapore|trung quốc|châu âu|mỹ\b/iu, fit: (c) => POLICY.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
+    { id: 'viet-nam', name: 'Tác động tới Việt Nam', q: 'Diễn biến này tác động gì tới Việt Nam, doanh nghiệp và người lao động Việt?', what: 'tác động tới Việt Nam',
+      has: /việt nam|người việt|doanh nghiệp việt|trong nước|hà nội|asean/iu, fit: (c) => /thuế|trừng phạt|xung đột|chiến sự|bầu cử|lãi suất|giá dầu|chip|bán dẫn|thương mại|xuất khẩu|nhập cư|visa|ai\b|nvidia|chuỗi cung ứng|lệnh cấm|đàm phán/iu.test(c.text), cats: ['Quốc tế'] },
+    { id: 'thuc-thi', name: 'Khâu thực thi', q: 'Ai giám sát việc thực thi, nguồn lực ở đâu và dễ vướng ở khâu nào?', what: 'khâu giám sát và điều kiện thực thi',
+      has: /giám sát|thực thi|hậu kiểm|thanh tra|khả thi|nguồn lực|lộ trình|vướng mắc|khó khăn|tổ chức thực hiện|hướng dẫn thi hành/iu, fit: (c) => /thông qua|ban hành|có hiệu lực|phê duyệt|chính thức áp dụng|bắt đầu áp dụng/iu.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
+    { id: 'kinh-phi', name: 'Bài toán kinh phí', q: 'Tiền ở đâu ra, ai chi trả và ai được hưởng lợi?', what: 'nguồn kinh phí và người chi trả',
+      has: /chi phí|kinh phí|ngân sách|nguồn vốn|vốn đầu tư|tỷ đồng|tỉ đồng|triệu usd|tỷ usd|ai trả|đền bù|giải phóng mặt bằng/iu, fit: (c) => PROJECT.test(c.text), cats: ['Thời sự', 'Xã hội', 'Khoa học Công nghệ'] },
+    { id: 'du-lieu', name: 'Nhìn bằng số liệu', q: 'Những vụ việc tương tự xảy ra dày đến mức nào? Thống kê nói gì về xu hướng?', what: 'số liệu thống kê hay bức tranh toàn cảnh',
+      has: /thống kê|số liệu|toàn cảnh|nhìn lại|từ đầu năm|trong \d+ (năm|tháng)|\d+ vụ|tăng \d|giảm \d|cùng kỳ/iu, fit: (c) => INCIDENT.test(c.text) || CRIME.test(c.text), cats: ['Xã hội', 'Pháp luật', 'Thời sự'] },
+    { id: 'rui-ro-so', name: 'Rủi ro pháp lý số', q: 'Rủi ro pháp lý, dữ liệu cá nhân và trách nhiệm của nền tảng nằm ở đâu?', what: 'rủi ro pháp lý hay dữ liệu cá nhân',
+      has: /pháp lý|quyền riêng tư|dữ liệu cá nhân|bản quyền|trách nhiệm|rủi ro|an toàn thông tin|bảo mật|lừa đảo|quy định/iu, fit: (c) => /\bai\b|trí tuệ nhân tạo|chatbot|ứng dụng|nền tảng|mạng xã hội|dữ liệu|robot|camera|định danh|sinh trắc|tài sản số|tiền số|blockchain/iu.test(c.text), cats: ['Khoa học Công nghệ'] },
+  ];
+  const topics = [], perCat = new Map(), perAngle = new Map();
+  const pool = stories.map((c) => ({ ...c, text: c.cl.map((x) => x.t + '. ' + x.sapo).join(' \n ') })).sort((a, b) => b.score - a.score);
+  for (const round of [1, 2]) { // lượt 1: mỗi góc dùng một lần; lượt 2: cho phép lặp góc
+    for (const c of pool) {
+      if (topics.length >= 6) break;
+      if (c.used || (perCat.get(c.cat) || 0) >= 2) continue;
+      if (pool.some((o) => o.used && o !== c && sameStory(o.rep, c.rep))) continue; // cùng sự việc ở mục khác
+      const angle = ANGLES.find((a) => a.cats.includes(c.cat) && (perAngle.get(a.id) || 0) < round && a.fit(c) && !a.has.test(c.text));
+      if (!angle) continue;
+      c.used = true;
+      perCat.set(c.cat, (perCat.get(c.cat) || 0) + 1); perAngle.set(angle.id, (perAngle.get(angle.id) || 0) + 1);
+      topics.push({
+        angle: angle.name, q: angle.q, cat: c.cat, n: c.sources.size, k: c.cl.length,
+        story: { t: c.rep.t, u: c.rep.u, s: c.rep.s },
+        why: `${c.sources.size} báo đã đăng ${c.cl.length} bài về sự việc này, nhưng chưa bài nào nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc đang được theo dõi rộng, nên một bài đi riêng góc này có chỗ đứng.`,
+      });
+    }
   }
-  // (2) sự việc có mốc thời gian phía trước
-  const upcoming = cluster(everything.filter((x) => age(x) <= 36 && !used.has(x.u) && FUTURE.test(x.t + '. ' + x.sapo))).map((cl) => {
-    const hit = cl.map((x) => ({ x, m: (x.t + '. ' + x.sapo).match(FUTURE) })).find((h) => h.m);
-    return { cl, hit, src: new Set(cl.map((x) => x.s)), inTitle: cl.some((x) => FUTURE.test(x.t)) };
-  }).filter((c) => c.hit).sort((a, b) => b.src.size * 2 + (b.inTitle ? 1.5 : 0) + b.cl.length * 0.3 - (a.src.size * 2 + (a.inTitle ? 1.5 : 0) + a.cl.length * 0.3));
-  const perCat = new Map();
-  for (const c of upcoming) {
-    if (topics.length >= 6) break;
-    const x = c.hit.x;
-    if ((perCat.get(x.cat) || 0) >= 1) continue;
-    perCat.set(x.cat, 1);
-    topics.push({
-      label: short(x.t), cat: x.cat, kind: 'upcoming',
-      why: `Có mốc phía trước: “${c.hit.m[0].trim().replace(/\s+\S*$/, (w) => (c.hit.m[0].trim().length >= 40 ? '' : w))}”. ${c.src.size > 1 ? c.src.size + ' báo đã đưa tin; đ' : 'Đ'}ề tài kiểu này thường nóng lại khi đến hạn hoặc khi có quyết định chính thức.`,
-      refs: refs(c.cl),
-    });
-  }
-  console.log('  Gợi ý đề tài:\n' + topics.map((t) => `   · [${t.kind}] ${t.label} — ${t.why}`).join('\n'));
+  console.log('  Gợi ý đề tài:\n' + topics.map((t) => `   · [${t.angle}] ${t.q}\n       ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n'));
 
   fs.writeFileSync(OUT, JSON.stringify({ updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics }));
   console.log(`→ static/news.json: ${categories.map((c) => `${c.name} ${c.items.length}/${c.hot.length}`).join(', ')}; ${topics.length} gợi ý; ${Math.round(fs.statSync(OUT).size / 1024)} KB`);

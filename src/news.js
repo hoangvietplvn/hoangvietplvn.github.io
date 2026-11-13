@@ -98,22 +98,23 @@
   cats.forEach((c, i) => { const b = el('button', 'hub-tab', c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', () => render(i)); tabs.append(b); });
   render(0);
 
-  /* ---- gợi ý đề tài ---- */
-  const topics = (data.topics || []).filter((x) => x && x.label && x.why);
+  /* ---- gợi ý đề tài: góc chưa báo nào khai thác ---- */
+  const topics = (data.topics || []).filter((x) => x && x.q && x.why && x.story);
   if (topics.length) {
     const sec = el('section', 'hub-topics');
     const hd = el('div', 'topics-head');
-    hd.append(el('h2', 'hub-title', 'Đề tài có thể nóng sắp tới'), el('p', '', 'Gợi ý để triển khai bài viết, chọn tự động từ dòng tin 48 giờ qua.'));
+    hd.append(el('h2', 'hub-title', 'Đề tài chưa báo nào khai thác'), el('p', '', 'Góc tiếp cận mới cho những sự việc đang được nhiều báo theo dõi.'));
     const grid = el('div', 'topic-grid');
     topics.forEach((tp) => {
       const c = el('article', 'topic');
-      const tags = el('p', 'topic-tags'); tags.append(el('span', 'kind ' + (tp.kind === 'upcoming' ? 'up' : 'rise'), tp.kind === 'upcoming' ? 'Có mốc sắp tới' : 'Đang nổi lên'), el('span', '', tp.cat || ''));
+      const tags = el('p', 'topic-tags'); tags.append(el('span', 'kind', tp.angle || 'Góc mới'), el('span', '', tp.cat || ''));
+      const from = el('p', 'topic-from'); from.append(el('b', '', 'Từ sự việc: '), ext(tp.story), el('span', '', ' — ' + tp.story.s));
       const why = el('p', 'topic-why'); why.append(el('b', '', 'Vì sao: '), document.createTextNode(tp.why));
-      c.append(tags, el('h3', '', tp.label), why);
-      if (Array.isArray(tp.refs) && tp.refs.length) { const ul = el('ul', 'topic-refs'); tp.refs.forEach((r) => { const li = el('li'); li.append(ext(r), el('span', '', ' — ' + r.s)); ul.append(li); }); c.append(ul); }
+      c.append(tags, el('h3', '', tp.q), from, why);
       grid.append(c);
     });
-    sec.append(hd, grid); wrap.append(sec);
+    sec.append(hd, grid, el('p', 'topics-note', 'Gợi ý tạo tự động: máy đối chiếu tiêu đề và phần mở đầu của các bài đã đăng với một bộ góc khai thác có sẵn. Nên kiểm tra lại nội dung đầy đủ của các bài trước khi triển khai.'));
+    wrap.append(sec);
   }
   hub.append(wrap, dlg);
   hub.hidden = false;
