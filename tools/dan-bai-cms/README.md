@@ -47,6 +47,10 @@ Tiện ích mở trang «Thêm mới tin bài» (hoặc dùng tab đang mở s�
 
 Ảnh mở đầu bài (cùng chú thích) được bỏ khỏi nội dung vì CMS Moj tự hiển thị ảnh đại diện ở đầu bài. Tiện ích không bao giờ bấm «Gửi kiểm duyệt» hay «Công khai ngay», và dừng lại nếu form đang soạn dở một bài khác.
 
+## Ảnh và chú thích ảnh trong bài
+
+Mọi ảnh trong nội dung được đặt vào đoạn căn giữa; chú thích ảnh được căn giữa và in nghiêng. Tiện ích nhận ra chú thích theo cách báo gốc đánh dấu (khối figure/figcaption, bảng bọc ảnh, khối có tên lớp «caption»/«chú thích», hoặc đoạn ngắn ngay sau ảnh đã được báo gốc căn giữa hay in nghiêng). Nếu một báo không đánh dấu chú thích theo các cách đó, đoạn chú thích vẫn là đoạn thường; hãy sửa trong khung Nội dung.
+
 ## Liên kết trong bài
 
 Mọi liên kết (hyperlink) gắn vào chữ trong nội dung đều bị gỡ khi lấy bài và khi điền vào cả hai CMS; phần chữ được giữ nguyên. Riêng dòng «Theo …» ở cuối bài vẫn kèm link gốc nếu bạn bật tùy chọn đó.

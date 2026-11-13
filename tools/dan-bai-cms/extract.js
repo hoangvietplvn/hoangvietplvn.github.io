@@ -63,6 +63,101 @@ function sanitizeHtml(html) {
   return doc.body.innerHTML.trim();
 }
 
+// ---------- Ảnh và chú thích ảnh ----------
+const tidy = (s) => (s || '').replace(/\s+/g, ' ').trim();
+function centerP(doc, ...nodes) {
+  const p = doc.createElement('p');
+  p.setAttribute('style', 'text-align: center;');
+  p.append(...nodes);
+  return p;
+}
+function captionP(doc, text) {
+  const em = doc.createElement('em');
+  em.textContent = tidy(text);
+  return centerP(doc, em);
+}
+
+// Trước khi làm sạch (còn tên lớp CSS của trang gốc): khối có tên lớp kiểu «caption», «chú thích», «photo-desc»...
+// nằm cạnh ảnh được đổi thành đoạn chú thích căn giữa, in nghiêng.
+const CAPTION_CLASS = /(^|[\s_-])(caption|figcaption|chu-?thich|(photo|image|img|pic|picture|anh)[_-]?(desc|description|note|title|text)|(desc|note)[_-]?(photo|image|img|pic|anh))/i;
+function markCaptions(root, doc) {
+  [...root.querySelectorAll('[class]')].forEach((el) => {
+    if (!el.isConnected || !CAPTION_CLASS.test(el.getAttribute('class') || '')) return;
+    if (/^(FIGCAPTION|TD|TH|TR|TBODY|TABLE|FIGURE|CAPTION)$/.test(el.tagName) || el.querySelector('img, table, figure')) return;
+    const t = tidy(el.textContent);
+    if (!t || t.length > 400) return;
+    const prev = el.previousElementSibling;
+    const nearPrev = prev && (prev.tagName === 'IMG' || prev.querySelector('img'));
+    const box = el.parentElement;
+    const inBox = box && box !== root && box.querySelector('img') && tidy(box.textContent).length <= 600;
+    if (!nearPrev && !inBox) return;
+    if (el.closest('figure, table')) return; // khối figure và bảng ảnh được xử lý theo cấu trúc ở styleImages
+    el.replaceWith(captionP(doc, t));
+  });
+}
+
+// Sau khi làm sạch: mọi ảnh trong bài nằm trong một đoạn căn giữa; chú thích ảnh căn giữa và in nghiêng.
+function styleImages(root, doc) {
+  // 1. <figure>: ảnh thành đoạn căn giữa, phần chữ còn lại (figcaption) thành chú thích.
+  [...root.querySelectorAll('figure')].forEach((fig) => {
+    const imgs = [...fig.querySelectorAll('img')];
+    if (!fig.isConnected || !imgs.length) return;
+    const t = tidy(fig.textContent);
+    const out = imgs.map((i) => centerP(doc, i));
+    if (t) out.push(captionP(doc, t));
+    fig.replaceWith(...out);
+  });
+  // 2. Bảng chỉ dùng để bọc ảnh và chú thích (kiểu trình bày phổ biến của các báo).
+  [...root.querySelectorAll('table')].forEach((tb) => {
+    const imgs = [...tb.querySelectorAll('img')];
+    if (!tb.isConnected || !imgs.length || tb.querySelectorAll('td, th').length > 4) return;
+    const t = tidy(tb.textContent);
+    if (t.length > 400) return;
+    const out = imgs.map((i) => centerP(doc, i));
+    if (t) out.push(captionP(doc, t));
+    tb.replaceWith(...out);
+  });
+  // 3. Ảnh còn lại: đưa vào đoạn căn giữa.
+  [...root.querySelectorAll('img')].forEach((img) => {
+    if (img.closest('table, li, blockquote')) return;
+    const p = img.closest('p');
+    if (!p) {
+      let n = img;
+      while (n.parentElement && n.parentElement !== root && /^(STRONG|B|EM|I|U|SPAN)$/.test(n.parentElement.tagName) && !tidy(n.parentElement.textContent)) n = n.parentElement;
+      const w = centerP(doc);
+      n.replaceWith(w);
+      w.append(img);
+      return;
+    }
+    const t = tidy(p.textContent);
+    if (!t) { p.setAttribute('style', 'text-align: center;'); return; }
+    if (p.querySelectorAll('img').length === 1 && t.length <= 250) {
+      // Ảnh và chú thích nằm chung một đoạn: tách thành hai đoạn.
+      p.replaceWith(centerP(doc, img), captionP(doc, t));
+    } else {
+      p.before(centerP(doc, img));
+    }
+  });
+  // 4. Đoạn ngắn ngay sau ảnh mà báo gốc đã căn giữa hoặc in nghiêng: coi là chú thích.
+  [...root.querySelectorAll('p')].forEach((p) => {
+    if (!p.querySelector('img') || tidy(p.textContent)) return;
+    const next = p.nextElementSibling;
+    if (!next || next.tagName !== 'P' || next.querySelector('img')) return;
+    const t = tidy(next.textContent);
+    if (!t || t.length > 250) return;
+    const centered = /text-align\s*:\s*center/i.test(next.getAttribute('style') || '');
+    const italic = tidy([...next.querySelectorAll('em, i')].filter((e) => !e.parentElement.closest('em, i')).map((e) => e.textContent).join(' ')) === t;
+    if (centered || italic) next.replaceWith(captionP(doc, t));
+  });
+}
+
+// Căn giữa ảnh và chú thích trong một đoạn HTML đã làm sạch.
+function styleHtml(html) {
+  const doc = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html');
+  styleImages(doc.body, doc);
+  return doc.body.innerHTML.trim();
+}
+
 function meta(doc, ...names) {
   for (const n of names) {
     const el = doc.querySelector(`meta[property="${n}"], meta[name="${n}"]`);
@@ -107,13 +202,17 @@ function parseArticle(html, url) {
   const h1 = doc.querySelector('h1');
   const h1Text = h1 ? h1.textContent.replace(/\s+/g, ' ').trim() : '';
 
-  const art = new Readability(doc).parse();
+  // Đánh dấu chú thích ảnh khi trang còn nguyên tên lớp CSS (bước bóc tách phía sau có thể làm mất tên lớp).
+  markCaptions(doc.body, doc);
+  const art = new Readability(doc, { keepClasses: true }).parse();
   if (!art || !art.content) throw new Error('Không nhận diện được nội dung bài báo trên trang này.');
 
   const title = h1Text || art.title || info.ogTitle;
   const sapo = info.sapo || art.excerpt || '';
   const body = new DOMParser().parseFromString('<body>' + art.content + '</body>', 'text/html');
+  markCaptions(body.body, body);
   cleanNode(body.body, body);
+  styleImages(body.body, body);
 
   // Bỏ tiêu đề và sapo bị lặp lại ở đầu phần nội dung.
   for (let i = 0; i < 3; i++) {
@@ -298,7 +397,7 @@ function docFromHtml(html, url) {
 
   const images = [...new Set([...holder.querySelectorAll('img')].map((i) => i.getAttribute('src') || '').filter((s) => /^https?:\/\//i.test(s)))];
   return {
-    url, title: clean(found.title), sapo: clean(sapo), html: sanitizeHtml(holder.innerHTML),
+    url, title: clean(found.title), sapo: clean(sapo), html: styleHtml(sanitizeHtml(holder.innerHTML)),
     author: clean(found.author || ''), site: '', cover, category: clean(found.category || ''),
     length: text.length, images, fromDoc: true,
     notes: ['Tiêu đề lấy từ: ' + (titleFrom || 'không tìm thấy, hãy nhập tay') + '.'],
