@@ -25,6 +25,12 @@ collections:
         label: Bài trên trang nhất
         file: homepage.json
         fields:
+          - name: show_blog
+            label: Hiện phần blog cá nhân trên trang nhất
+            widget: boolean
+            default: true
+            required: false
+            hint: Tắt thì trang nhất chỉ còn khu Tin nổi bật; các bài viết vẫn mở được qua đường dẫn riêng, trang Lưu trữ và chuyên mục.
           - name: mode
             label: Cách chọn bài
             widget: select

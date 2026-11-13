@@ -25,6 +25,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Dò RSS (tạm)
+        run: node scripts/discover-rss.js
+        continue-on-error: true
       - name: Lấy điểm tin
         run: node scripts/fetch-news.js
         continue-on-error: true

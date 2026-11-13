@@ -162,6 +162,7 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 ${newsOn ? (cls.split(' ').includes('home')
     ? `<section class="hub" data-src="${root}news.json" aria-label="Tin nổi bật" hidden></section>`
     : `<aside class="newsbar" data-src="${root}news.json" aria-label="Điểm tin" hidden></aside>`) : ''}
+${cls.split(' ').includes('blog-off') ? '<noscript><style>.blog-off .masthead,.blog-off main{display:block!important}</style></noscript>' : ''}
 <header class="masthead" id="blog">
   <div class="topline wrap">
     <span>${fmtDateLong(new Date())}</span>
@@ -257,7 +258,8 @@ ${more.length ? `<section class="wrap">
   <div class="grid">${more.map((p) => card(p, '')).join('\n')}</div>
 </section>` : ''}
 <section class="wrap allposts"><a class="btn" href="luu-tru/">Xem toàn bộ kho lưu trữ →</a></section>`;
-  write('index.html', shell({ root: '', body, cls: 'home', canonical: '' }));
+  // show_blog = false (mục Trang nhất trong trang quản trị): trang nhất chỉ còn khu tin; phần blog ẩn đi
+  write('index.html', shell({ root: '', body, cls: 'home' + (newsOn && home.show_blog === false ? ' blog-off' : ''), canonical: '' }));
 }
 
 // Bài viết

@@ -491,3 +491,7 @@ figcaption { margin-top: 10px; font: 400 13px/1.5 var(--sans); color: var(--ink-
   .info-also li { grid-template-columns: 1fr; gap: 2px; }
 }
 @media print { .hub { display: none; } }
+
+/* Trang nhất khi tắt phần blog (homepage.json: show_blog = false) */
+.blog-off .masthead, .blog-off main, .blog-off .hub-toblog { display: none; }
+.blog-off .sitefoot { margin-top: 0; }

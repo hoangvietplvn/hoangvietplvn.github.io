@@ -2,14 +2,16 @@
 (async () => {
   const hub = document.querySelector('.hub');
   if (!hub) return;
+  // không có tin để hiện thì trả lại phần blog (kể cả khi đang tắt), tránh trang nhất trống
+  const giveUp = () => document.body.classList.remove('blog-off');
   let data;
   try {
     const res = await fetch(hub.dataset.src + '?t=' + Math.floor(Date.now() / 6e5));
-    if (!res.ok) return;
+    if (!res.ok) return giveUp();
     data = await res.json();
-  } catch (e) { return; }
+  } catch (e) { return giveUp(); }
   const cats = (data.categories || []).filter((c) => c && Array.isArray(c.hot) && c.hot.length);
-  if (!cats.length || Date.now() - Date.parse(data.updated) > 36 * 3600e3) return;
+  if (!cats.length || Date.now() - Date.parse(data.updated) > 36 * 3600e3) return giveUp();
 
   const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
   const ok = (u) => typeof u === 'string' && /^https?:\/\//i.test(u);
