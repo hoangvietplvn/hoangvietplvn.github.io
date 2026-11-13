@@ -34,7 +34,7 @@ function parse(xml, source) {
     const it = m[0];
     const t = text(tag(it, 'title')).slice(0, 220);
     const u = httpUrl(text(tag(it, 'link')) || text(tag(it, 'guid')));
-    if (!t || !u) continue;
+    if (!t || !u || /^(tin tức|điểm tin|bản tin)\b/i.test(t)) continue; // bỏ các bài điểm tin tổng hợp
     const rawDesc = decode(uncdata(tag(it, 'description')));
     const img = httpUrl(decode((rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i) || it.match(/<(?:enclosure|media:content|media:thumbnail)[^>]+url=["']([^"']+)["']/i) || [])[1] || '').trim());
     const ms = Date.parse(text(tag(it, 'pubDate')) || text(tag(it, 'dc:date')));
