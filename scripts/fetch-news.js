@@ -156,13 +156,16 @@ function keySentences(html, title, have, max = 4) {
   const paras = bodyParagraphs(html);
   if (paras.length < 3) return [];
   const tw = grams(title).uni, haveSets = have.map((x) => grams(x).uni);
+  const topic = new Set([...tw, ...haveSets.flatMap((x) => [...x])]);
   const cands = [];
-  paras.slice(0, 30).forEach((para, pi) => {
+  paras.slice(0, 22).forEach((para, pi) => {
+    if (!/[.!?…]/.test(para)) return; // khối tiêu đề tin liên quan: không có dấu câu
     para.split(/(?<=[.!?…])\s+(?=[\p{Lu}"“(\d])/u).forEach((raw) => {
-      const sen = raw.trim();
-      if (sen.length < 60 || sen.length > 260 || /[?:]$/.test(sen) || JUNK.test(sen)) return;
+      const sen = raw.trim().replace(/^[-–•*]\s*/, '');
+      if (sen.length < 60 || sen.length > 260 || !/[.!…”"')]$/.test(sen) || JUNK.test(sen)) return;
       const g = grams(sen).uni;
       if (g.size < 6) return;
+      if (shared(g, topic) < (pi < 4 ? 2 : 3)) return; // không bám chủ đề: nhiều khả năng thuộc bài khác trên cùng trang
       if (haveSets.some((hs) => shared(g, hs) / Math.min(g.size, hs.size || 1) > 0.6)) return; // đã có trong sapo
       const nums = (sen.match(/\d[\d.,]*/g) || []).length;
       const score = Math.min(nums, 2) * 1.2 + Math.min(shared(g, tw), 4) * 0.6 + (pi < 3 ? 1.5 : pi < 7 ? 0.8 : pi < 12 ? 0.3 : 0) + (/["“”]/.test(sen) ? 0.4 : 0) + (/^(theo|trước đó|hiện|đến nay|cơ quan|kết quả|nguyên nhân|dự kiến)/iu.test(sen) ? 0.4 : 0) - (sen.length > 220 ? 0.5 : 0);
@@ -253,8 +256,9 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
+  const VERSION = 2; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
-  for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
+  if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
   await Promise.all(categories.flatMap((c) => c.hot.map(async (h) => {
     const old = done.get(h.u);
@@ -273,29 +277,36 @@ function original(phrase, title) {
   /* ---------- gợi ý đề tài: góc chưa báo nào khai thác ----------
      Với mỗi sự việc đang được nhiều báo đưa, đối chiếu tiêu đề + phần mở đầu của tất cả các bài
      với một bộ "góc khai thác". Góc nào hợp với loại sự việc mà chưa bài nào chạm tới thì thành gợi ý. */
-  const INCIDENT = /nổ|cháy|sập|tai nạn|sạt lở|ngộ độc|sự cố|tử vong|thiệt mạng|bị thương|mất tích|lũ|ngập|đuối nước|rò rỉ/iu;
-  const CRIME = /bắt|khởi tố|truy tố|xét xử|tạm giam|tạm giữ|lừa đảo|đường dây|chiếm đoạt|tham ô|hối lộ|buôn lậu|hàng giả|cưỡng đoạt|sát hại|ma túy|đánh bạc|vi phạm/iu;
-  const POLICY = /luật|dự thảo|đề xuất|nghị định|nghị quyết|thông tư|chính sách|quy hoạch|thí điểm|đề án|thông qua|ban hành|có hiệu lực|phê duyệt|quy định mới|sửa đổi|lấy ý kiến/iu;
-  const PROJECT = /dự án|quy hoạch|đề án|chương trình|đầu tư|xây dựng|khởi công|di dời|tái thiết|hạ tầng|cao tốc|sân bay|đường sắt|metro/iu;
+  const W = (alts) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${alts})(?![\\p{L}\\p{N}])`, 'iu'); // khớp trọn từ, tránh "nổ" dính "nổi"
+  const INCIDENT = W('vụ nổ|nổ lớn|nổ bình gas|nổ gas|phát nổ|cháy|hỏa hoạn|sập|tai nạn|sạt lở|ngộ độc|sự cố|tử vong|thiệt mạng|bị thương|mất tích|mưa lũ|lũ quét|ngập|đuối nước|rò rỉ|lật xe|chìm tàu');
+  const CRIME = W('bắt giữ|bắt tạm giam|bắt khẩn cấp|bắt quả tang|bắt nhóm|bắt đối tượng|bắt nghi phạm|khởi tố|truy tố|xét xử|tạm giam|tạm giữ|lừa đảo|đường dây|chiếm đoạt|tham ô|hối lộ|buôn lậu|hàng giả|cưỡng đoạt|sát hại|ma túy|đánh bạc|bị cáo|bị can|phạt tù|năm tù|lĩnh án');
+  const POLICY = W('dự thảo|đề xuất|nghị định|nghị quyết|thông tư|thí điểm|đề án|luật sửa đổi|sửa đổi, bổ sung|thông qua luật|ban hành|có hiệu lực|phê duyệt|quy định mới|lấy ý kiến|chính sách mới');
+  const PROJECT = W('dự án|quy hoạch|khởi công|di dời|tái thiết|cao tốc|sân bay|đường sắt|metro|giải phóng mặt bằng|tuyến đường|cầu vượt|khu đô thị|tái định cư');
+  const ENACTED = W('quốc hội thông qua|chính phủ ban hành|thủ tướng phê duyệt|bộ chính trị ban hành|hđnd thông qua|ký ban hành|có hiệu lực|chính thức áp dụng|bắt đầu áp dụng|ban hành nghị định|ban hành thông tư|ban hành nghị quyết');
+  const SCAM = W('lừa đảo|chiếm đoạt|hàng giả|giả mạo|ngộ độc|cưỡng đoạt|tín dụng đen|đa cấp|mạo danh|deepfake|tấn công mạng|lộ dữ liệu|lộ lọt dữ liệu|mã độc');
+  const WORLD = W('thuế quan|áp thuế|trừng phạt|xung đột|chiến sự|bầu cử|lãi suất|giá dầu|chip|bán dẫn|thương mại|xuất khẩu|nhập cư|visa|nvidia|chuỗi cung ứng|lệnh cấm|đàm phán|ngừng bắn|tấn công');
+  const DIGITAL = W('ai|trí tuệ nhân tạo|chatbot|ứng dụng|nền tảng|mạng xã hội|dữ liệu|robot|camera|định danh|sinh trắc|tài sản số|tiền số|blockchain|microsoft|google|meta|openai');
+  // tin lễ tân, ảnh, đồ hoạ: không phải chất liệu để mở góc mới
+  const SKIP = /^\s*\[(ảnh|infographic|video|photo|emagazine|longform)\]|tiếp (đặc phái viên|đại sứ|đoàn|chủ tịch|thủ tướng|bộ trưởng)|hội kiến|hội đàm|điện mừng|thư mừng|thư chúc mừng|chúc mừng|thăm chính thức|lễ đón|chiêu đãi|dâng hương|tưởng niệm|kỷ niệm \d+ năm/iu;
   const ANGLES = [
-    { id: 'phap-ly', name: 'Góc pháp lý', q: 'Ai chịu trách nhiệm pháp lý và bồi thường, theo quy định nào?', what: 'trách nhiệm pháp lý hay việc bồi thường',
-      has: /trách nhiệm (pháp lý|hình sự|dân sự|bồi thường)|bồi thường|chế tài|mức phạt|khung hình phạt|luật sư|theo (điều|quy định|bộ luật)|xử lý (hình sự|trách nhiệm)/iu, fit: (c) => INCIDENT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Pháp luật', 'Khoa học Công nghệ'] },
     { id: 'ke-ho', name: 'Kẽ hở quy định', q: 'Kẽ hở nào trong quy định đã bị lợi dụng, và cần vá ra sao?', what: 'kẽ hở hay bất cập của quy định hiện hành',
-      has: /lỗ hổng|kẽ hở|bất cập|khoảng trống pháp lý|sửa luật|cần sửa|hoàn thiện (pháp luật|quy định|thể chế)|kiến nghị/iu, fit: (c) => CRIME.test(c.text), cats: ['Pháp luật', 'Thời sự', 'Xã hội'] },
+      has: W('lỗ hổng|kẽ hở|bất cập|khoảng trống pháp lý|sửa luật|cần sửa|hoàn thiện pháp luật|hoàn thiện quy định|hoàn thiện thể chế|kiến nghị'), fit: (c) => CRIME.test(c.text), cats: ['Pháp luật', 'Thời sự', 'Xã hội'] },
+    { id: 'phap-ly', name: 'Góc pháp lý', q: 'Ai chịu trách nhiệm pháp lý và bồi thường, theo quy định nào?', what: 'trách nhiệm pháp lý hay việc bồi thường',
+      has: W('trách nhiệm pháp lý|trách nhiệm hình sự|trách nhiệm dân sự|trách nhiệm bồi thường|bồi thường|chế tài|mức phạt|khung hình phạt|luật sư|theo điều|theo quy định|theo bộ luật|xử lý hình sự|xử lý trách nhiệm'), fit: (c) => INCIDENT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Pháp luật', 'Khoa học Công nghệ'] },
     { id: 'tu-ve', name: 'Cẩm nang cho người dân', q: 'Người dân cần làm gì để nhận biết, phòng tránh và đòi quyền lợi?', what: 'hướng dẫn cụ thể cho người dân',
-      has: /cách (nhận biết|phòng|xử lý|đòi)|cần làm gì|nên làm gì|hướng dẫn|khuyến cáo|cảnh báo|lưu ý|dấu hiệu nhận biết|quyền lợi/iu, fit: (c) => /lừa đảo|chiếm đoạt|hàng giả|giả mạo|ngộ độc|cưỡng đoạt|tín dụng đen|đa cấp|mạo danh|deepfake|tấn công mạng|lộ dữ liệu/iu.test(c.text), cats: ['Pháp luật', 'Xã hội', 'Khoa học Công nghệ', 'Thời sự'] },
-    { id: 'quoc-te', name: 'So sánh quốc tế', q: 'Các nước đã xử lý vấn đề này thế nào, và bài học nào dùng được cho Việt Nam?', what: 'kinh nghiệm của các nước',
-      has: /kinh nghiệm (quốc tế|các nước|thế giới|nước ngoài)|các nước|nước ngoài|quốc tế|thế giới|so với khu vực|mô hình (của|từ)|nhật bản|hàn quốc|singapore|trung quốc|châu âu|mỹ\b/iu, fit: (c) => POLICY.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
-    { id: 'viet-nam', name: 'Tác động tới Việt Nam', q: 'Diễn biến này tác động gì tới Việt Nam, doanh nghiệp và người lao động Việt?', what: 'tác động tới Việt Nam',
-      has: /việt nam|người việt|doanh nghiệp việt|trong nước|hà nội|asean/iu, fit: (c) => /thuế|trừng phạt|xung đột|chiến sự|bầu cử|lãi suất|giá dầu|chip|bán dẫn|thương mại|xuất khẩu|nhập cư|visa|ai\b|nvidia|chuỗi cung ứng|lệnh cấm|đàm phán/iu.test(c.text), cats: ['Quốc tế'] },
+      has: W('cách nhận biết|cách phòng|cách xử lý|cần làm gì|nên làm gì|hướng dẫn|khuyến cáo|cảnh báo|lưu ý|dấu hiệu nhận biết|quyền lợi'), fit: (c) => SCAM.test(c.text), cats: ['Pháp luật', 'Xã hội', 'Khoa học Công nghệ', 'Thời sự'] },
     { id: 'thuc-thi', name: 'Khâu thực thi', q: 'Ai giám sát việc thực thi, nguồn lực ở đâu và dễ vướng ở khâu nào?', what: 'khâu giám sát và điều kiện thực thi',
-      has: /giám sát|thực thi|hậu kiểm|thanh tra|khả thi|nguồn lực|lộ trình|vướng mắc|khó khăn|tổ chức thực hiện|hướng dẫn thi hành/iu, fit: (c) => /thông qua|ban hành|có hiệu lực|phê duyệt|chính thức áp dụng|bắt đầu áp dụng/iu.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
+      has: W('giám sát|thực thi|hậu kiểm|khả thi|nguồn lực|lộ trình|vướng mắc|tổ chức thực hiện|hướng dẫn thi hành'), fit: (c) => ENACTED.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
+    { id: 'quoc-te', name: 'So sánh quốc tế', q: 'Các nước đã xử lý vấn đề này thế nào, và bài học nào dùng được cho Việt Nam?', what: 'kinh nghiệm của các nước',
+      has: W('kinh nghiệm quốc tế|kinh nghiệm các nước|kinh nghiệm thế giới|các nước|nước ngoài|quốc tế|thế giới|khu vực|nhật bản|hàn quốc|singapore|trung quốc|châu âu|mỹ|asean'), fit: (c) => POLICY.test(c.text) && !CRIME.test(c.text) && !INCIDENT.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
+    { id: 'viet-nam', name: 'Tác động tới Việt Nam', q: 'Diễn biến này tác động gì tới Việt Nam, doanh nghiệp và người lao động Việt?', what: 'tác động tới Việt Nam',
+      has: W('việt nam|người việt|doanh nghiệp việt|trong nước|hà nội'), fit: (c) => WORLD.test(c.text), cats: ['Quốc tế'] },
     { id: 'kinh-phi', name: 'Bài toán kinh phí', q: 'Tiền ở đâu ra, ai chi trả và ai được hưởng lợi?', what: 'nguồn kinh phí và người chi trả',
-      has: /chi phí|kinh phí|ngân sách|nguồn vốn|vốn đầu tư|tỷ đồng|tỉ đồng|triệu usd|tỷ usd|ai trả|đền bù|giải phóng mặt bằng/iu, fit: (c) => PROJECT.test(c.text), cats: ['Thời sự', 'Xã hội', 'Khoa học Công nghệ'] },
+      has: W('chi phí|kinh phí|ngân sách|nguồn vốn|vốn đầu tư|tỷ đồng|tỉ đồng|triệu usd|tỷ usd|đền bù'), fit: (c) => PROJECT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Khoa học Công nghệ'] },
     { id: 'du-lieu', name: 'Nhìn bằng số liệu', q: 'Những vụ việc tương tự xảy ra dày đến mức nào? Thống kê nói gì về xu hướng?', what: 'số liệu thống kê hay bức tranh toàn cảnh',
-      has: /thống kê|số liệu|toàn cảnh|nhìn lại|từ đầu năm|trong \d+ (năm|tháng)|\d+ vụ|tăng \d|giảm \d|cùng kỳ/iu, fit: (c) => INCIDENT.test(c.text) || CRIME.test(c.text), cats: ['Xã hội', 'Pháp luật', 'Thời sự'] },
+      has: W('thống kê|số liệu|toàn cảnh|nhìn lại|từ đầu năm|cùng kỳ|so với năm'), fit: (c) => INCIDENT.test(c.text) || CRIME.test(c.text), cats: ['Xã hội', 'Pháp luật', 'Thời sự'] },
     { id: 'rui-ro-so', name: 'Rủi ro pháp lý số', q: 'Rủi ro pháp lý, dữ liệu cá nhân và trách nhiệm của nền tảng nằm ở đâu?', what: 'rủi ro pháp lý hay dữ liệu cá nhân',
-      has: /pháp lý|quyền riêng tư|dữ liệu cá nhân|bản quyền|trách nhiệm|rủi ro|an toàn thông tin|bảo mật|lừa đảo|quy định/iu, fit: (c) => /\bai\b|trí tuệ nhân tạo|chatbot|ứng dụng|nền tảng|mạng xã hội|dữ liệu|robot|camera|định danh|sinh trắc|tài sản số|tiền số|blockchain/iu.test(c.text), cats: ['Khoa học Công nghệ'] },
+      has: W('pháp lý|quyền riêng tư|dữ liệu cá nhân|bản quyền|trách nhiệm|rủi ro|an toàn thông tin|bảo mật|lừa đảo|quy định'), fit: (c) => DIGITAL.test(c.text), cats: ['Khoa học Công nghệ'] },
   ];
   const withText = stories.map((c) => ({ ...c, text: c.cl.map((x) => x.t + '. ' + x.sapo).join(' \n ') }));
   function suggest() {
@@ -305,7 +316,7 @@ function original(phrase, title) {
       const items = [], usedAngles = new Set();
       for (const minSrc of [2, 1]) for (const c of pool) { // ưu tiên sự việc nhiều báo đưa; thiếu thì lấy cả sự việc mới có một báo
         if (items.length >= 3) break;
-        if (c.used || c.sources.size < minSrc || taken.some((o) => sameStory(o.rep, c.rep))) continue;
+        if (c.used || c.sources.size < minSrc || SKIP.test(c.rep.t) || taken.some((o) => sameStory(o.rep, c.rep))) continue;
         const angle = ANGLES.find((a) => a.cats.includes(c.cat) && !usedAngles.has(a.id) && a.fit(c) && !a.has.test(c.text));
         if (!angle) continue;
         c.used = true; taken.push(c); usedAngles.add(angle.id);
@@ -326,11 +337,11 @@ function original(phrase, title) {
   const marks = [-1, 0, 1].flatMap((d) => SLOTS.map((h) => base + d * day + h * HOUR)).sort((a, b) => a - b);
   const lastMark = Math.max(...marks.filter((m) => m <= now)), nextMark = Math.min(...marks.filter((m) => m > now));
   const old = prev.topics;
-  const keep = old && Array.isArray(old.cats) && old.cats.length && Date.parse(old.at) >= lastMark && !process.env.NEWS_FORCE_TOPICS;
+  const keep = prev.v === VERSION && old && Array.isArray(old.cats) && old.cats.length && Date.parse(old.at) >= lastMark && !process.env.NEWS_FORCE_TOPICS;
   const topics = keep ? { ...old, next: new Date(nextMark).toISOString() } : { at: new Date().toISOString(), next: new Date(nextMark).toISOString(), cats: suggest() };
   const nTopics = topics.cats.reduce((n, c) => n + c.items.length, 0);
   console.log(`  Gợi ý đề tài (${keep ? 'giữ bản lúc ' + old.at : 'tạo mới'}; lần đổi tới ${topics.next}):\n` + topics.cats.map((c) => `   ${c.name}:\n` + c.items.map((t) => `     · [${t.angle}] ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n')).join('\n'));
 
-  fs.writeFileSync(OUT, JSON.stringify({ updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics }));
+  fs.writeFileSync(OUT, JSON.stringify({ v: VERSION, updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics }));
   console.log(`→ static/news.json: ${categories.map((c) => `${c.name} ${c.items.length}/${c.hot.length}`).join(', ')}; ${nTopics} gợi ý; ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
 })().catch((e) => { console.log('Lỗi lấy tin: ' + (e.stack || e.message)); });
