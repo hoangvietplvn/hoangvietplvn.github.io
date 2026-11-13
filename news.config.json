@@ -1,0 +1,44 @@
+{
+  "enabled": true,
+  "label": "Tin nóng",
+  "per_category": 8,
+  "categories": [
+    {
+      "name": "Thời sự",
+      "feeds": [
+        { "source": "VnExpress", "url": "https://vnexpress.net/rss/thoi-su.rss" },
+        { "source": "Tuổi Trẻ", "url": "https://tuoitre.vn/rss/thoi-su.rss" },
+        { "source": "Thanh Niên", "url": "https://thanhnien.vn/rss/thoi-su.rss" },
+        { "source": "VietnamNet", "url": "https://vietnamnet.vn/rss/thoi-su.rss" }
+      ]
+    },
+    {
+      "name": "Quốc tế",
+      "feeds": [
+        { "source": "VnExpress", "url": "https://vnexpress.net/rss/the-gioi.rss" },
+        { "source": "Tuổi Trẻ", "url": "https://tuoitre.vn/rss/the-gioi.rss" },
+        { "source": "Thanh Niên", "url": "https://thanhnien.vn/rss/the-gioi.rss" },
+        { "source": "VietnamNet", "url": "https://vietnamnet.vn/rss/the-gioi.rss" }
+      ]
+    },
+    {
+      "name": "Pháp luật",
+      "feeds": [
+        { "source": "VnExpress", "url": "https://vnexpress.net/rss/phap-luat.rss" },
+        { "source": "Tuổi Trẻ", "url": "https://tuoitre.vn/rss/phap-luat.rss" },
+        { "source": "VietnamNet", "url": "https://vietnamnet.vn/rss/phap-luat.rss" },
+        { "source": "Dân Trí", "url": "https://dantri.com.vn/rss/phap-luat.rss" }
+      ]
+    },
+    {
+      "name": "Xã hội",
+      "feeds": [
+        { "source": "Dân Trí", "url": "https://dantri.com.vn/rss/xa-hoi.rss" },
+        { "source": "Lao Động", "url": "https://laodong.vn/rss/xa-hoi.rss" },
+        { "source": "Tiền Phong", "url": "https://tienphong.vn/rss/xa-hoi-2.rss" },
+        { "source": "VOV", "url": "https://vov.vn/rss/xa-hoi.rss" },
+        { "source": "VietnamPlus", "url": "https://www.vietnamplus.vn/rss/xahoi-314.rss" }
+      ]
+    }
+  ]
+}

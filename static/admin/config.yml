@@ -144,3 +144,25 @@ collections:
           - { name: url, label: Địa chỉ trang, widget: string, hint: "Ví dụ https://hoangvietplvn.github.io" }
           - { name: domain, label: Tên miền riêng, widget: string, required: false, hint: Chỉ điền khi đã mua tên miền riêng. }
           - { name: language, label: Mã ngôn ngữ, widget: string, default: vi }
+      - name: news
+        label: Thanh điểm tin đầu trang
+        file: news.config.json
+        fields:
+          - { name: enabled, label: Hiện thanh điểm tin, widget: boolean, default: true, required: false }
+          - { name: label, label: Nhãn, widget: string, default: Tin nóng }
+          - { name: per_category, label: Số tin mỗi mục, widget: number, value_type: int, min: 1, max: 20, default: 8 }
+          - name: categories
+            label: Các mục tin
+            label_singular: mục
+            widget: list
+            summary: "{{name}}"
+            fields:
+              - { name: name, label: Tên mục, widget: string }
+              - name: feeds
+                label: Nguồn tin (RSS)
+                label_singular: nguồn
+                widget: list
+                summary: "{{source}}"
+                fields:
+                  - { name: source, label: Tên báo, widget: string }
+                  - { name: url, label: Địa chỉ RSS, widget: string, hint: "Phải bắt đầu bằng https://" }

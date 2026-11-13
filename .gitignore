@@ -2,3 +2,4 @@ node_modules/
 dist/
 preview/
 *.zip
+static/news.json

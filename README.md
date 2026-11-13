@@ -71,3 +71,7 @@ Mở `https://hoangvietplvn.github.io/admin/` và đăng nhập bằng mã truy 
 - Ảnh tải lên: `static/images/uploads/`
 - Bài long-form thiết kế riêng (tệp `.html`) không hiện trong trang quản trị.
 - Trang nhất: mục "Trang nhất" trong trang quản trị ghi vào `homepage.json` (chế độ tự động, hoặc tự chọn bài chính, cột bên phải và lưới bài phía dưới).
+
+## Thanh điểm tin đầu trang
+
+Mỗi giờ, GitHub Actions chạy `scripts/fetch-news.js` để lấy tiêu đề mới từ các nguồn RSS khai báo trong `news.config.json`, rồi dựng lại trang. Bật/tắt, đổi nhãn, thêm bớt mục và nguồn tin trong trang quản trị: **Cài đặt trang → Thanh điểm tin đầu trang**. Nguồn nào lỗi thì tự bỏ qua; không lấy được tin nào thì thanh tự ẩn.

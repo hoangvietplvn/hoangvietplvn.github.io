@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *' # mỗi giờ: cập nhật thanh điểm tin
 permissions:
   contents: read
   pages: write
@@ -23,6 +25,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Lấy điểm tin
+        run: node scripts/fetch-news.js
+        continue-on-error: true
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

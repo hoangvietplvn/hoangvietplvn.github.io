@@ -129,6 +129,10 @@ const VER = require('crypto').createHash('md5')
   .update(fs.readFileSync(path.join(ROOT, 'src/styles.css'))).update(fs.readFileSync(path.join(ROOT, 'src/main.js')))
   .digest('hex').slice(0, 10);
 
+/* Thanh điểm tin đầu trang: bật/tắt trong news.config.json; dữ liệu do scripts/fetch-news.js lấy về */
+let newsOn = false;
+try { newsOn = !!JSON.parse(fs.readFileSync(path.join(ROOT, 'news.config.json'), 'utf8')).enabled; } catch (e) { /* không có cấu hình: tắt */ }
+
 /* ---------- khung trang ---------- */
 function shell({ title, description, root, body, cls = '', image = '', canonical = '' }) {
   const full = title ? `${title} — ${cfg.title}` : `${cfg.title} — ${cfg.tagline}`;
@@ -155,6 +159,7 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 </head>
 <body class="${cls}">
 <div class="progress" aria-hidden="true"></div>
+${newsOn ? `<aside class="newsbar" data-src="${root}news.json" aria-label="Điểm tin" hidden></aside>` : ''}
 <header class="masthead">
   <div class="topline wrap">
     <span>${fmtDateLong(new Date())}</span>
