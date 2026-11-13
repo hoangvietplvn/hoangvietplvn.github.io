@@ -142,7 +142,15 @@ function numbers(title, sapo) {
    (có con số, nhắc lại từ khoá của tiêu đề, nằm ở phần đầu bài) và giữ nguyên văn vài câu cao điểm nhất. */
 const JUNK = /©|bản quyền|giấy phép|tổng biên tập|tòa soạn|toà soạn|liên hệ quảng cáo|đường dây nóng|hotline|email:|điện thoại:|tải ứng dụng|theo dõi (chúng tôi|báo)|đăng ký nhận|chia sẻ bài viết|bình luận|xem thêm|đọc thêm|tin liên quan|mời (quý|bạn đọc)|ảnh:|nguồn:|video:|clip:|đồ họa:|click|bấm vào|quét mã|trụ sở|ghi rõ nguồn/iu;
 function bodyParagraphs(html) {
-  let h = html.replace(/<(script|style|noscript|svg|figure|figcaption|table|header|footer|nav|aside|form|iframe|button|select|ul|ol)[\s>][\s\S]*?<\/\1>/gi, ' ');
+  // khoanh vùng thân bài nếu trang có đánh dấu, và cắt bỏ phần tin liên quan / bình luận phía sau
+  let h = html.replace(/<(script|style|noscript)[\s>][\s\S]*?<\/\1>/gi, ' ');
+  const start = h.search(/itemprop=["']articleBody["']|class=["'][^"']*\b(article__body|fck_detail|singular-content|detail-content|entry-content|article-content|content-detail|detail__content|e-magazine__body)\b/i);
+  if (start > 0) {
+    h = h.slice(start);
+    const end = h.slice(400).search(/class=["'][^"']*\b(article__tag|article__foot|related[\w-]*|tin-lien-quan|comment[\w-]*|box-tinlienquan|article__meta)\b|<footer[\s>]/i);
+    if (end > 0) h = h.slice(0, end + 400);
+  }
+  h = h.replace(/<(svg|figure|figcaption|table|header|footer|nav|aside|form|iframe|button|select|ul|ol|h[1-6])[\s>][\s\S]*?<\/\1>/gi, ' ');
   const out = [];
   for (const m of h.matchAll(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/gi)) {
     if ((m[1].match(/<a[\s>]/gi) || []).length > 2) continue; // đoạn toàn liên kết
@@ -256,7 +264,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 2; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 3; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
