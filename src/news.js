@@ -41,7 +41,7 @@
   // dải thương hiệu: logo sóng, tên trang, đồng hồ chạy theo thời gian thực
   const brand = el('div', 'hub-brand');
   const logo = el('span', 'brand-mark'); logo.setAttribute('aria-hidden', 'true');
-  logo.innerHTML = '<svg viewBox="0 0 40 40"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ee8fa"/><stop offset="1" stop-color="#1e6fd9"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="11" fill="none" stroke="url(#bm)" stroke-width="2"/><path d="M8 24c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round"/><path d="M8 17c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
+  logo.innerHTML = '<svg viewBox="0 0 40 40"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0d9a0"/><stop offset="1" stop-color="#c49a4a"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="11" fill="none" stroke="url(#bm)" stroke-width="1.5"/><path d="M8 24c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round"/><path d="M8 17c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
   const bname = el('span', 'brand-name'); bname.append(el('b', '', hub.dataset.site || 'Bản tin'), el('span', '', 'Bản tin tổng hợp'));
   const clock = el('span', 'brand-clock');
   const DAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
@@ -227,16 +227,16 @@
       const a = pts[i];
       for (let j = i + 1; j < pts.length; j++) {
         const b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
-        if (d < LINK) { ctx.strokeStyle = `rgba(255,255,255,${(1 - d / LINK) * .28})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        if (d < LINK) { ctx.strokeStyle = `rgba(226,205,150,${(1 - d / LINK) * .22})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
       if (mouse) {
         const dx = a.x - mouse.x, dy = a.y - mouse.y, d = Math.hypot(dx, dy);
-        if (d < 170) { ctx.strokeStyle = `rgba(214,247,255,${(1 - d / 170) * .55})`; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); }
+        if (d < 170) { ctx.strokeStyle = `rgba(240,217,160,${(1 - d / 170) * .45})`; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); }
       }
     }
     for (const p of pts) {
       const glow = .55 + .45 * Math.sin((t || 0) / 900 + p.p);
-      ctx.fillStyle = `rgba(255,255,255,${.35 + glow * .5})`;
+      ctx.fillStyle = `rgba(255,244,218,${.25 + glow * .45})`;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     }
     if (!still && visible && !document.hidden) raf = requestAnimationFrame(frame);

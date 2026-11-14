@@ -892,3 +892,126 @@ figcaption { margin-top: 10px; font: 400 13px/1.5 var(--sans); color: var(--ink-
 @media (max-width: 900px) { .home .hub { --band: 560px; } }
 @media (max-width: 600px) { .home .hub { --band: 640px; } .home .hub-wave { background-size: 900px 70px; height: 70px; } @keyframes o-wave { from { background-position-x: 0; } to { background-position-x: 900px; } } }
 @media (prefers-reduced-motion: reduce) { .home .hub::before, .home .hub-wave, .home::after { animation: none !important; } }
+
+/* =====================================================================
+   SAPPHIRE — bản cuối cho trang nhất: nền xanh sapphire toàn trang,
+   nhấn vàng champagne, đường mảnh, góc vuông vắn, chữ có chân trắng.
+   (Ghi đè hai bản "Đại dương" phía trên.)
+   ===================================================================== */
+.home {
+  --o-text: #f2f6fb; --o-text-2: #c5d4e6; --o-muted: #92a9c4; --o-line: rgba(205, 220, 240, .15); --o-line-2: rgba(214, 180, 106, .5);
+  --gold: #d6b46a; --gold-2: #efd9a4; --ice: #a9d1fb; --card: rgba(255, 255, 255, .045); --card-2: rgba(255, 255, 255, .075);
+  --glass: var(--card); --glass-2: var(--card-2); --sea: var(--gold); --sky: var(--gold-2);
+  background: #0b3360; color: var(--o-text);
+}
+.home::before {
+  background:
+    radial-gradient(1200px 620px at 70% -12%, rgba(96, 160, 235, .32), transparent 62%),
+    radial-gradient(900px 600px at -5% 30%, rgba(40, 110, 200, .22), transparent 60%),
+    radial-gradient(1000px 700px at 100% 110%, rgba(30, 90, 170, .30), transparent 60%),
+    linear-gradient(180deg, #0f3e72 0%, #0b3360 45%, #092b52 100%);
+}
+.home::after { opacity: 1; background-image: linear-gradient(rgba(255, 255, 255, .03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, transparent 1px); background-size: 72px 72px; }
+.home .progress { background: linear-gradient(90deg, var(--gold), var(--gold-2)); }
+.home .hub::before { height: var(--band); animation: none; background: radial-gradient(900px 380px at 78% 0%, rgba(140, 190, 245, .22), transparent 70%), linear-gradient(180deg, rgba(255, 255, 255, .035), transparent 85%); }
+.home .hub-wave { display: none; }
+.home .hub-fx canvas { opacity: .8; }
+
+/* đầu trang */
+.home .hub-brand { border-bottom-color: var(--o-line); }
+.home .brand-mark { filter: none; }
+.home .brand-mark svg rect, .home .brand-mark svg path { stroke: url(#bm); }
+.home .brand-name b { color: #fff; font-weight: 600; letter-spacing: .02em; }
+.home .brand-name span { color: var(--gold); letter-spacing: .32em; }
+.home .brand-clock { color: var(--o-text-2); border-color: var(--o-line); background: transparent; border-radius: 3px; letter-spacing: .1em; }
+.home .nb-label { background: transparent; color: var(--gold); border: 1px solid rgba(214, 180, 106, .6); border-radius: 2px; letter-spacing: .24em; }
+.home .nb-label::before { background: var(--gold); box-shadow: 0 0 8px rgba(214, 180, 106, .8); }
+.home .hub-title { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #fff; filter: none; font-weight: 700; letter-spacing: -.015em; }
+.home .hub-titlebox::after { content: ""; width: 72px; height: 1px; background: linear-gradient(90deg, var(--gold), transparent); margin-top: 4px; }
+.home .hub-sub { color: var(--o-text-2); font-weight: 300; }
+.home .hub-stats { background: rgba(255, 255, 255, .04); border-color: var(--o-line); border-radius: 4px; backdrop-filter: blur(10px); }
+.home .stat { border-left-color: var(--o-line); }
+.home .stat b { font: 600 28px/1 var(--display); color: var(--gold-2); }
+.home .stat span { color: var(--o-muted); letter-spacing: .14em; }
+
+/* chuyên mục: chữ in hoa, gạch chân vàng */
+.home .hub-tabbar .hub-tabs, .home .topic-tabs { background: transparent; border: 0; border-bottom: 1px solid var(--o-line); border-radius: 0; box-shadow: none; padding: 0; gap: 0 28px; backdrop-filter: none; }
+.home .hub-tab { border-radius: 0; padding: 14px 0 12px; color: var(--o-muted); letter-spacing: .16em; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.home .hub-tab:hover { background: none; color: #fff; }
+.home .hub-tab[aria-selected="true"] { background: none; color: #fff; box-shadow: none; border-bottom: 2px solid var(--gold); }
+.home .hub-tab:focus-visible, .home .hot-card:focus-visible, .home .hub a:focus-visible, .home .fake-card:focus-visible { outline-color: var(--gold); }
+.home .hub-tabbar { align-items: flex-end; }
+.home .fake-btn { background: rgba(243, 207, 106, .06); color: #f3cf6a; border: 1px solid rgba(243, 207, 106, .55); border-radius: 3px; box-shadow: none; letter-spacing: .14em; animation: o-ping-lux 3s ease-out infinite; }
+.home .fake-btn:hover { background: rgba(243, 207, 106, .12); box-shadow: none; transform: none; }
+.home .fake-btn[aria-selected="true"] { background: #f3cf6a; color: #0b2a4d; }
+.home .fake-tri { background: #f3cf6a; color: #0b2a4d; }
+.home .fake-btn[aria-selected="true"] .fake-tri { background: #0b2a4d; color: #f3cf6a; }
+@keyframes o-ping-lux { 0% { box-shadow: 0 0 0 0 rgba(243, 207, 106, .3); } 70% { box-shadow: 0 0 0 10px rgba(243, 207, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(243, 207, 106, 0); } }
+
+/* thẻ */
+.home .hot-card, .home .trend, .home .fake-card { background: var(--card); border: 1px solid var(--o-line); border-radius: 6px; box-shadow: 0 18px 40px rgba(3, 18, 40, .22); backdrop-filter: blur(10px); }
+.home .hot-card:hover, .home .fake-card:hover { background: var(--card-2); border-color: var(--o-line-2); box-shadow: 0 22px 48px rgba(3, 18, 40, .35); transform: translateY(-1px); }
+.home .hot-card .hot-img { border-radius: 3px; }
+.home .hot-lead .hot-img { border-radius: 0; }
+.home .hot-title { color: var(--o-text); font-weight: 500; }
+.home .hot-card:hover .hot-title { color: #fff; }
+.home .hot-lead .hot-title { color: #fff; font-weight: 600; }
+.home .hot-rank { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--gold); font-family: var(--display); font-weight: 600; }
+.home .hot-sapo { color: var(--o-text-2); font-weight: 300; }
+.home .hot-meta { color: var(--o-muted); }
+.home .heat { color: var(--gold-2); letter-spacing: .1em; }
+.home .heat i { background: rgba(255, 255, 255, .12); border-radius: 0; height: 3px; }
+.home .heat i.on { background: var(--gold); box-shadow: none; }
+
+/* cảnh báo tin giả */
+.home .fake-head { background: linear-gradient(110deg, rgba(243, 207, 106, .10), rgba(255, 255, 255, .02)); border: 1px solid rgba(243, 207, 106, .4); border-radius: 6px; }
+.home .fake-head h3 { color: #f3cf6a; }
+.home .fake-head p { color: var(--o-text-2); }
+.home .fake-title { color: var(--o-text); font-weight: 500; }
+.home .fake-official { color: #ffb3b3; border-color: rgba(255, 150, 150, .6); }
+
+/* ý tưởng đề tài */
+.home .topics-head h2 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #fff; font-weight: 700; }
+.home .topics-head p { color: var(--o-muted); }
+.home .trend::before { height: 1px; background: linear-gradient(90deg, var(--gold), rgba(214, 180, 106, 0) 70%); }
+.home .trend-label { color: var(--o-muted); }
+.home .trend-label .kind { background: none; color: var(--gold); border: 1px solid rgba(214, 180, 106, .55); border-radius: 2px; }
+.home .trend-event h3 { color: #fff; font-weight: 600; }
+.home .trend-event h3 a:hover { color: var(--gold-2); }
+.home .trend-why { background: rgba(3, 18, 40, .22); border-left: 2px solid var(--gold); border-radius: 0; color: var(--o-text-2); }
+.home .trend-why b { color: #fff; }
+.home .trend-ideas li { border-top-color: var(--o-line); }
+.home .trend-ideas li::before { background: none; border: 1px solid var(--gold); color: var(--gold-2); box-shadow: none; font-family: var(--display); font-weight: 600; line-height: 30px; }
+.home .idea-h { color: var(--o-text); font-weight: 600; }
+.home .idea-f { color: var(--ice); border: 1px solid rgba(169, 209, 251, .4); background: none; border-radius: 2px; }
+.home .idea-w { color: var(--o-muted); }
+.home .topics-note { color: var(--o-muted); }
+
+/* bảng tóm tắt */
+.home .info { background: #0c3460; color: var(--o-text); border: 1px solid var(--o-line); border-radius: 8px; box-shadow: 0 40px 110px rgba(2, 12, 30, .6); }
+.home .info::backdrop { background: rgba(4, 18, 40, .62); }
+.home .info-head { background: radial-gradient(600px 220px at 100% 0%, rgba(140, 190, 245, .25), transparent 70%), linear-gradient(135deg, #14508f, #0c3460); border-bottom: 1px solid rgba(214, 180, 106, .45); }
+.home .info-cat { color: var(--gold); }
+.home .info-close { border-radius: 3px; }
+.home .info-close:hover { background: var(--gold); color: #0b2a4d; border-color: var(--gold); }
+.home .info-sec h4 { color: var(--gold); }
+.home .info-points li { color: var(--o-text); }
+.home .info-points li::before { background: none; border: 1px solid var(--gold); color: var(--gold-2); line-height: 30px; }
+.home .info-nums div { background: rgba(255, 255, 255, .04); border: 1px solid var(--o-line); border-radius: 4px; }
+.home .info-nums b { color: var(--gold-2); }
+.home .info-nums span, .home .info-heatnote, .home .info-also, .home .info-note { color: var(--o-text-2); }
+.home .info-cta { background: var(--gold); color: #0b2a4d; border-radius: 3px; box-shadow: none; letter-spacing: .18em; }
+.home .info-cta:hover { background: var(--gold-2); }
+.home .info.warn .info-head { background: linear-gradient(135deg, #2c3f5c, #0c3460); border-bottom-color: rgba(243, 207, 106, .6); }
+.home .info.warn .info-sec h4 { color: #f3cf6a; }
+.home .info.warn .info-points li::before { background: none; border-color: #f3cf6a; color: #f3cf6a; }
+.home .info.warn .info-cta { background: #f3cf6a; color: #0b2a4d; }
+
+/* phần blog khi bật */
+.home .masthead { background: rgba(9, 43, 82, .75) !important; }
+.home .kicker { color: var(--gold); }
+.home .btn:hover { background: var(--gold); color: #0b2a4d; }
+.home .stat b, .home .hot-rank, .home .trend-ideas li::before, .home .info-points li::before, .home .info-nums b { font-variant-numeric: lining-nums tabular-nums; }
+.home .stat b { font-size: 30px; }
+.home .hub::before { -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%); mask-image: linear-gradient(180deg, #000 55%, transparent 100%); }
+.home .hub-fx { -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%); mask-image: linear-gradient(180deg, #000 70%, transparent 100%); }
