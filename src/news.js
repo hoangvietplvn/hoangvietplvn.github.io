@@ -38,7 +38,25 @@
   const head = el('div', 'hub-head');
   const t = new Date(data.updated), p2 = (n) => String(n).padStart(2, '0');
   const toBlog = el('a', 'hub-toblog', 'Xuống phần blog ↓'); toBlog.href = '#blog';
-  head.append(el('span', 'nb-label', data.label || 'Tin nóng'), el('h2', 'hub-title', 'Tin nổi bật'), el('span', 'hub-updated', `Cập nhật ${p2(t.getHours())}:${p2(t.getMinutes())} · ${p2(t.getDate())}/${p2(t.getMonth() + 1)}`), toBlog);
+  // dải thương hiệu: logo sóng, tên trang, đồng hồ chạy theo thời gian thực
+  const brand = el('div', 'hub-brand');
+  const logo = el('span', 'brand-mark'); logo.setAttribute('aria-hidden', 'true');
+  logo.innerHTML = '<svg viewBox="0 0 40 40"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ee8fa"/><stop offset="1" stop-color="#1e6fd9"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="11" fill="none" stroke="url(#bm)" stroke-width="2"/><path d="M8 24c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round"/><path d="M8 17c3-4 6-4 9 0s6 4 9 0 5-4 6-2" fill="none" stroke="url(#bm)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
+  const bname = el('span', 'brand-name'); bname.append(el('b', '', hub.dataset.site || 'Bản tin'), el('span', '', 'Bản tin tổng hợp'));
+  const clock = el('span', 'brand-clock');
+  const DAYS = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  const tick = () => { const d = new Date(); clock.textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} · ${DAYS[d.getDay()]}, ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`; };
+  tick(); setInterval(tick, 1000);
+  brand.append(logo, bname, clock);
+  // chỉ số nhanh
+  const srcs = new Set(), allTin = new Set();
+  cats.forEach((c) => [...(c.items || []), ...(c.hot || [])].forEach((x) => { if (x.s) srcs.add(x.s); allTin.add(x.u); }));
+  const stats = el('div', 'hub-stats');
+  const stat = (v, l) => { const d = el('span', 'stat'); d.append(el('b', '', String(v)), el('span', '', l)); return d; };
+  stats.append(stat(srcs.size, 'báo nguồn'), stat(cats.length, 'chuyên mục'), stat(allTin.size, 'tin đang theo dõi'), stat(`${p2(t.getHours())}:${p2(t.getMinutes())}`, 'lần cập nhật gần nhất'));
+  const titleBox = el('div', 'hub-titlebox');
+  titleBox.append(el('span', 'nb-label', data.label || 'Tin nóng'), el('h2', 'hub-title', 'Tin nổi bật'), el('p', 'hub-sub', 'Toàn cảnh những sự kiện được nhiều báo cùng đưa tin, cập nhật mỗi 15 phút.'));
+  head.append(brand, titleBox, stats, toBlog);
   const tabbar = el('div', 'hub-tabbar');
   const tabs = el('div', 'hub-tabs'); tabs.setAttribute('role', 'tablist');
   tabbar.append(tabs);

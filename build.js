@@ -143,6 +143,7 @@ function shell({ title, description, root, body, cls = '', image = '', canonical
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${cls.split(' ').includes('home') ? '<meta name="theme-color" content="#041a2e">' : ''}
 <title>${esc(full)}</title>
 <meta name="description" content="${esc(description || cfg.description)}">
 <meta property="og:title" content="${esc(title || cfg.title)}">
@@ -161,7 +162,7 @@ ${canonical ? `<link rel="canonical" href="${esc(cfg.url.replace(/\/$/, '') + '/
 <body class="${cls}">
 <div class="progress" aria-hidden="true"></div>
 ${newsOn ? (cls.split(' ').includes('home')
-    ? `<section class="hub" data-src="${root}news.json" aria-label="Tin nổi bật" hidden></section>`
+    ? `<section class="hub" data-src="${root}news.json" data-site="${esc(cfg.title)}" aria-label="Tin nổi bật" hidden></section>`
     : `<aside class="newsbar" data-src="${root}news.json" aria-label="Điểm tin" hidden></aside>`) : ''}
 ${cls.split(' ').includes('blog-off') ? '<noscript><style>.blog-off .masthead,.blog-off main{display:block!important}</style></noscript>' : ''}
 <header class="masthead" id="blog">
@@ -218,7 +219,7 @@ write('assets/news.js', fs.readFileSync(path.join(ROOT, 'src/news.js')));
     if (fs.existsSync(path.join(cms, 'chunks'))) walk(path.join(cms, 'chunks'), 'chunks');
   }
 }
-write('assets/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#16130f"/><text x="32" y="46" font-family="Georgia,serif" font-size="40" font-weight="700" text-anchor="middle" fill="#f6f1e7">${esc(cfg.title.trim()[0] || 'B')}</text></svg>`);
+write('assets/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b4170"/><stop offset="1" stop-color="#041a2e"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><text x="32" y="46" font-family="Georgia,serif" font-size="40" font-weight="700" text-anchor="middle" fill="#7ee8fa">${esc(cfg.title.trim()[0] || 'B')}</text></svg>`);
 for (const p of posts) if (!p.cover) write(`assets/covers/${p.slug}.svg`, coverSvg(p.slug));
 
 // Trang nhất
