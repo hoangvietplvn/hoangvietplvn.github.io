@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 13; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 14; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -415,7 +415,8 @@ function original(phrase, title) {
       const m = t.match(/(?:tin đồn|tin giả|sai sự thật|bịa đặt|thất thiệt|xuyên tạc)\s+(?:về\s+)?(?:việc\s+)?([^:;?!…–—|(]{6,80})/iu);
       if (m) { const x = tidy(smartCut(m[1].split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'tin đồn ' + x; }
     }
-    const v = [t, ...c.cl.map((x) => x.t).filter((x) => x !== c.rep.t)].map((x) => x.match(VU)).find(Boolean);
+    // cụm "vụ …" lấy ở tiêu đề tiêu biểu, hoặc ở bài khác thật sự cùng sự việc với nó
+    const v = [t, ...c.cl.filter((x) => x.t !== c.rep.t && sameStory(x, c.rep)).map((x) => x.t)].map((x) => x.match(VU)).find(Boolean);
     if (v) { const x = tidy(smartCut(v[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 10)); if (x.split(' ').length >= 3) return low(x); }
     if (type === 'crime') { const m = t.match(CRIME_KEY); if (m) { const x = tidy(smartCut(t.slice(m.index).split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'vụ ' + low(x); } }
     if (type === 'incident') { const m = t.match(INC_KEY); if (m) { const x = low(tidy(smartCut(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0], 8))); if (x.split(' ').length >= 2) return /^(vụ|sự cố)\s/u.test(x) ? x : 'vụ ' + x; } }
@@ -448,7 +449,7 @@ function original(phrase, title) {
   };
   const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
   function suggest(slot, prevUsed) {
-    const out = [], taken = [];
+    const out = [], taken = [], takenX = [];
     for (const cat of categories) {
       const pool = withText.filter((c) => c.cat === cat.name && !SKIP.test(c.rep.t) && !TREND_SKIP.test(c.rep.t)).map((c) => {
         const hits = SIGNALS.filter(([re]) => re.test(c.rep.t + '. ' + (c.rep.sapo || '').split(/(?<=[.!?])\s/)[0])).map(([, label]) => label);
@@ -464,6 +465,9 @@ function original(phrase, title) {
         taken.push(c);
         let type = typeOf(c); const X = subjectOf(c, type);
         if (!X || X.split(' ').length < 2) continue; // không rút được chủ thể gọn: bỏ sự kiện này
+        const gx = grams(X).uni;
+        if (takenX.some((g) => shared(g, gx) >= 2)) continue; // cùng chủ thể đã có ở mục khác
+        takenX.push(gx);
         if (/^vụ\s/u.test(X) && (type === 'people' || type === 'general')) type = CRIME.test(c.text) ? 'crime' : 'incident';
         // xoay mẫu theo mốc giờ; tránh mẫu đã dùng ở mốc trước và trong cùng mục
         const ctx = (c.rep.t + ' ' + X).toLowerCase();
