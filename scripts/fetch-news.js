@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 12; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 13; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -303,25 +303,25 @@ function original(phrase, title) {
      rồi bung ra 3 đề tài có tiêu đề riêng từ kho mẫu theo loại. Mẫu được xoay vòng theo mốc 12:00 / 21:00. */
   const IDEAS = {
     incident: [
-      ['i1', 'Sau {X}: 5 điều cần kiểm tra ngay trong nhà bạn', 'Infographic dạng checklist', 'checklist hữu ích, dễ được lưu và chia sẻ vào nhóm gia đình'],
+      ['i1', 'Sau {X}: 5 điều cần kiểm tra ngay trong nhà bạn', 'Infographic dạng checklist', 'checklist hữu ích, dễ được lưu và chia sẻ vào nhóm gia đình', 'nổ|cháy|gas|điện|ngộ độc|rò rỉ|hỏa hoạn'],
       ['i2', '{X} qua lời kể của những người có mặt', 'Phóng sự nhân chứng, video dọc', 'câu chuyện người thật, cảm xúc thật giữ người xem tới cuối'],
       ['i3', 'Những câu hỏi chưa có lời đáp sau {X}', 'Bài phân tích', 'đặt đúng câu người đọc đang thắc mắc nên dễ kéo bình luận'],
-      ['i4', '60 giây tái hiện {X}', 'Video đồ hoạ ngắn', 'video ngắn tái hiện diễn biến hợp thuật toán TikTok, Reels'],
-      ['i5', 'Gặp tình huống như {X}, làm gì trong 5 phút đầu?', 'Video hướng dẫn kỹ năng', 'kỹ năng thực dụng, người xem có lý do gửi cho người thân'],
-      ['i6', '{X}: những người hùng thầm lặng', 'Chân dung ngắn', 'câu chuyện tích cực giữa tin buồn thường lan toả mạnh'],
+      ['i4', '60 giây tái hiện {X}', 'Video đồ hoạ ngắn', 'video ngắn tái hiện diễn biến hợp thuật toán TikTok, Reels', 'nổ|cháy|sập|tai nạn|sạt lở|lũ|lật|va chạm|hỏa hoạn'],
+      ['i5', 'Gặp tình huống như {X}, làm gì trong 5 phút đầu?', 'Video hướng dẫn kỹ năng', 'kỹ năng thực dụng, người xem có lý do gửi cho người thân', 'nổ|cháy|gas|sập|tai nạn|lũ|sạt lở|ngộ độc|đuối nước|động đất|hỏa hoạn'],
+      ['i6', '{X}: những người hùng thầm lặng', 'Chân dung ngắn', 'câu chuyện tích cực giữa tin buồn thường lan toả mạnh', 'cứu|tìm kiếm|cấp cứu|sơ tán|lũ|sạt lở|cháy|nổ|sập'],
       ['i7', 'Bản đồ những sự việc tương tự {X} từ đầu năm', 'Bản đồ tương tác', 'bức tranh toàn cảnh khiến người đọc bất ngờ về mức độ phổ biến'],
     ],
     crime: [
-      ['c1', 'Giải mã thủ đoạn trong {X}: kịch bản được dựng thế nào?', 'Infographic từng bước', 'người đọc tò mò cách kẻ gian vận hành và chia sẻ để cảnh báo người thân'],
-      ['c2', '{X}: dòng tiền đã chạy đi đâu?', 'Sơ đồ dòng tiền', 'đồ hoạ "theo dấu tiền" gây tò mò, dễ lan trên mạng xã hội'],
+      ['c1', 'Giải mã thủ đoạn trong {X}: kịch bản được dựng thế nào?', 'Infographic từng bước', 'người đọc tò mò cách kẻ gian vận hành và chia sẻ để cảnh báo người thân', 'lừa|chiếm đoạt|giả mạo|đường dây|thủ đoạn|tham ô|rửa tiền'],
+      ['c2', '{X}: dòng tiền đã chạy đi đâu?', 'Sơ đồ dòng tiền', 'đồ hoạ "theo dấu tiền" gây tò mò, dễ lan trên mạng xã hội', 'lừa|chiếm đoạt|tham ô|tiền|tỷ|tỉ|đường dây|hối lộ|rửa tiền|đánh bạc|cờ bạc|trốn thuế|hóa đơn'],
       ['c3', 'Từ {X}, nhìn lại những vụ án tương tự từng gây chấn động', 'Bài tổng hợp', 'gợi lại vụ cũ ai cũng nhớ làm tăng lượt đọc và bình luận'],
-      ['c4', '3 dấu hiệu giúp bạn không trở thành nạn nhân như trong {X}', 'Video ngắn cảnh báo', 'nội dung tự vệ thực dụng, người xem chủ động chia sẻ'],
-      ['c5', '{X}: những người bị hại giờ ra sao?', 'Phóng sự', 'góc con người phía sau con số, ít báo làm'],
+      ['c4', '3 dấu hiệu giúp bạn không trở thành nạn nhân như trong {X}', 'Video ngắn cảnh báo', 'nội dung tự vệ thực dụng, người xem chủ động chia sẻ', 'lừa|chiếm đoạt|cướp|trộm|giả mạo|mạo danh|cưỡng đoạt'],
+      ['c5', '{X}: những người bị hại giờ ra sao?', 'Phóng sự', 'góc con người phía sau con số, ít báo làm', 'lừa|chiếm đoạt|nạn nhân|bị hại|sát hại|cưỡng đoạt|xâm hại'],
       ['c6', 'Hỏi luật sư 60 giây: {X} sẽ bị xử lý thế nào?', 'Video hỏi – đáp pháp luật', 'hỏi – đáp ngắn hợp mạng xã hội và đúng thế mạnh báo pháp luật'],
       ['c7', 'Dòng thời gian {X}: từ lúc phát hiện đến hôm nay', 'Timeline', 'giúp người đến sau theo kịp câu chuyện, dễ được ghim và chia sẻ'],
     ],
     policy: [
-      ['p1', '{X}: ví tiền của bạn thay đổi thế nào?', 'Infographic tính toán', 'người đọc muốn biết ngay mình được – mất gì'],
+      ['p1', '{X}: ví tiền của bạn thay đổi thế nào?', 'Infographic tính toán', 'người đọc muốn biết ngay mình được – mất gì', 'thuế|phí|lương|giá|tiền|đầu tư|tỷ|tỉ|hỗ trợ|bảo hiểm|học phí|trợ cấp|đồng'],
       ['p2', '10 câu hỏi ai cũng thắc mắc về {X}', 'Hỏi – đáp', 'dạng hỏi – đáp dễ tìm thấy trên Google và dễ chia sẻ'],
       ['p3', '{X}: ai được lợi nhất, ai phải thay đổi nhiều nhất?', 'Bảng so sánh', 'chia rõ "được – mất" kích thích bình luận, tranh luận'],
       ['p4', 'Người trẻ nghĩ gì về {X}?', 'Phỏng vấn đường phố, video dọc', 'phỏng vấn nhanh người trẻ rất hợp TikTok, Reels'],
@@ -332,16 +332,16 @@ function original(phrase, title) {
     world: [
       ['w1', '{X}: chuyện gì đang thực sự diễn ra?', 'Bài giải thích 3 phút', 'khi tin dồn dập, người đọc cần một bản giải thích gọn'],
       ['w2', '3 kịch bản tiếp theo của {X}', 'Phân tích dự báo', 'dự báo khiến người đọc quay lại kiểm chứng và tranh luận'],
-      ['w3', '{X} chạm tới giá xăng, giá vàng và việc làm ở Việt Nam ra sao?', 'Infographic tác động', 'kéo chuyện thế giới về túi tiền người Việt'],
+      ['w3', '{X} chạm tới giá xăng, giá vàng và việc làm ở Việt Nam ra sao?', 'Infographic tác động', 'kéo chuyện thế giới về túi tiền người Việt', 'dầu|xăng|iran|trung đông|thuế|thương mại|chiến|xung đột|lãi suất|fed|nga|ukraine|trung quốc|hàng không|máy bay|chip'],
       ['w4', '{X} qua 5 con số', 'Infographic số liệu', 'con số gây bất ngờ là chất liệu chia sẻ mạnh'],
       ['w5', 'Người Việt tại chỗ kể gì về {X}?', 'Phóng sự kết nối', 'góc nhìn người Việt ở nơi xảy ra sự việc, ít báo có'],
       ['w6', 'Mạng xã hội thế giới đang nói gì về {X}?', 'Tổng hợp phản ứng', 'tổng hợp bình luận, ảnh chế quốc tế rất dễ viral'],
     ],
     tech: [
       ['t1', '{X}: kiểm chứng thực tế ra sao?', 'Video trải nghiệm', 'trải nghiệm thật có sức thuyết phục và lượt xem cao'],
-      ['t2', '{X} có ảnh hưởng tới điện thoại, tài khoản của bạn?', 'Hướng dẫn tự kiểm tra', 'người dùng lo cho chính mình nên chủ động bấm xem'],
+      ['t2', '{X} có ảnh hưởng tới điện thoại, tài khoản của bạn?', 'Hướng dẫn tự kiểm tra', 'người dùng lo cho chính mình nên chủ động bấm xem', 'điện thoại|tài khoản|ứng dụng|dịch vụ|sự cố|cập nhật|lỗi|bảo mật|mạng'],
       ['t3', 'Giải thích {X} cho người không rành công nghệ', 'Explainer bằng hình', 'nhóm độc giả lớn nhất cần một bản dễ hiểu'],
-      ['t4', 'Từ {X}: 5 việc cần làm ngay để bảo vệ dữ liệu của bạn', 'Checklist', 'checklist làm được ngay được lưu và chia sẻ nhiều'],
+      ['t4', 'Từ {X}: 5 việc cần làm ngay để bảo vệ dữ liệu của bạn', 'Checklist', 'checklist làm được ngay được lưu và chia sẻ nhiều', 'dữ liệu|tài khoản|lừa đảo|tấn công mạng|mã độc|bảo mật|lộ|rò rỉ|hacker'],
       ['t5', '{X} mở ra cơ hội gì cho người Việt?', 'Phân tích', 'góc "cơ hội" tích cực hợp với người trẻ, giới khởi nghiệp'],
       ['t6', 'Dân mạng phản ứng thế nào trước {X}?', 'Tổng hợp phản ứng', 'tổng hợp bình luận, ảnh chế dễ lan'],
     ],
@@ -376,7 +376,7 @@ function original(phrase, title) {
     [W('mạng xã hội|tiktok|facebook|clip|video|livestream|dân mạng|cộng đồng mạng|viral'), 'đã có dấu hiệu lan trên mạng xã hội'],
   ];
   const RUMOR = W('tin đồn|tin giả|thông tin sai sự thật|sai sự thật|bịa đặt|thất thiệt|xuyên tạc|bác bỏ thông tin|không đúng sự thật');
-  const DOC = /(?<![\p{L}])(luật|bộ luật|nghị định|nghị quyết|thông tư|dự thảo|đề xuất|quy định mới|chính sách)(?![\p{L}])/iu;
+  const DOC = /(?<![\p{L}])(?:Luật|Bộ luật|[Nn]ghị định|[Nn]ghị quyết|[Tt]hông tư|[Dd]ự thảo|[Đđ]ề xuất|[Qq]uy định mới|[Cc]hính sách)(?![\p{L}])/u;
   // tin thủ tục, thông cáo, nhân sự: ít chất liệu để thành trend
   const TREND_SKIP = /thông cáo|kỳ họp thứ|phiên họp|cho thôi nhiệm vụ|bổ nhiệm|miễn nhiệm|phê chuẩn|bầu bổ sung|tiếp xúc cử tri|giao ban|sơ kết|tổng kết|hội nghị (triển khai|quán triệt)|ký kết hợp tác|trao quyết định/iu;
   const repText = (c) => c.rep.t + '. ' + (c.rep.sapo || '').split(/(?<=[.!?])\s/)[0];
@@ -419,7 +419,7 @@ function original(phrase, title) {
     if (v) { const x = tidy(smartCut(v[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 10)); if (x.split(' ').length >= 3) return low(x); }
     if (type === 'crime') { const m = t.match(CRIME_KEY); if (m) { const x = tidy(smartCut(t.slice(m.index).split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'vụ ' + low(x); } }
     if (type === 'incident') { const m = t.match(INC_KEY); if (m) { const x = low(tidy(smartCut(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0], 8))); if (x.split(' ').length >= 2) return /^(vụ|sự cố)\s/u.test(x) ? x : 'vụ ' + x; } }
-    const d = t.match(/(?<![\p{L}])((?:luật|bộ luật|nghị định|nghị quyết|thông tư|quy hoạch|đề án|dự án|chương trình|chiến dịch|hội nghị|đại hội|lễ hội|giải|chính sách|kế hoạch|dự thảo)(?:\s+[^\s:;?!…–—|(]+){1,8})/iu);
+    const d = t.match(/(?<![\p{L}])((?:Luật|Bộ luật|[Nn]ghị định|[Nn]ghị quyết|[Tt]hông tư|[Qq]uy hoạch|[Đđ]ề án|[Dd]ự án|[Cc]hương trình|[Cc]hiến dịch|[Hh]ội nghị|[Đđ]ại hội|[Ll]ễ hội|[Gg]iải|[Cc]hính sách|[Kk]ế hoạch|[Dd]ự thảo)(?:\s+[^\s:;?!…–—|(]+){1,8})/u);
     if (d) { const x = tidy(d[1].split(/\s+(?:khiến|làm|gây|được|đã|đang|sẽ|cho|tại|ở|từ|trong|nhằm|để|dài|với)\s+|,\s/u)[0]); if (x.split(' ').length >= 2) return x; }
     // tên riêng nhiều chữ lặp lại trong các bài cùng sự kiện (bỏ tên địa danh, cơ quan chung chung)
     const cnt = new Map();
@@ -435,6 +435,7 @@ function original(phrase, title) {
     const seg = t.split(CUT)[0].trim();
     const n = seg.split(/\s+/).length;
     if (type === 'general' || type === 'people') return n >= 3 && n <= 10 ? tidy(seg) : '';
+    if (type === 'crime' || type === 'incident' || type === 'rumor') return '';
     const head = tidy(smartCut(seg, 10));
     return head.split(' ').length >= 3 ? head : '';
   }
@@ -465,9 +466,12 @@ function original(phrase, title) {
         if (!X || X.split(' ').length < 2) continue; // không rút được chủ thể gọn: bỏ sự kiện này
         if (/^vụ\s/u.test(X) && (type === 'people' || type === 'general')) type = CRIME.test(c.text) ? 'crime' : 'incident';
         // xoay mẫu theo mốc giờ; tránh mẫu đã dùng ở mốc trước và trong cùng mục
-        const bank = [...IDEAS[type], ...(type === 'general' ? [] : IDEAS.general)];
+        const ctx = (c.rep.t + ' ' + X).toLowerCase();
+        const fits = (t) => !t[4] || new RegExp(t[4], 'iu').test(ctx);
+        const own = IDEAS[type].filter(fits);
+        const bank = [...own, ...(type === 'general' ? [] : IDEAS.general)];
         // ưu tiên mẫu riêng của loại sự kiện; trong đó ưu tiên mẫu chưa dùng ở mốc trước
-        const order = bank.map((t, i) => ({ t, k: hash(slot + '|' + c.rep.u + '|' + t[0]) + (prevUsed.has(t[0]) ? 2 ** 32 : 0) + (i >= IDEAS[type].length ? 2 ** 34 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.t);
+        const order = bank.map((t, i) => ({ t, k: hash(slot + '|' + c.rep.u + '|' + t[0]) + (prevUsed.has(t[0]) ? 2 ** 32 : 0) + (i >= own.length ? 2 ** 34 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.t);
         const ideas = [];
         for (const t of order) { if (ideas.length >= 3) break; if (usedTpl.has(t[0])) continue; usedTpl.add(t[0]); ideas.push({ id: t[0], h: fill(t[1], X), f: t[2], w: t[3] }); }
         const n = c.sources.size, k = c.cl.length;
