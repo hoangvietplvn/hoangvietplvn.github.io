@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 10; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 11; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -454,11 +454,14 @@ function original(phrase, title) {
       for (const c of pool) {
         if (items.length >= 2) break;
         if (taken.some((o) => sameStory(o.rep, c.rep))) continue;
+        if (!c.hits.length && typeOf(c) === 'general') continue; // không có yếu tố lan truyền và không thuộc loại nào: bỏ qua
         taken.push(c);
-        const type = typeOf(c), X = subjectOf(c, type);
+        let type = typeOf(c); const X = subjectOf(c, type);
+        if (/^vụ\s/u.test(X) && (type === 'people' || type === 'general')) type = CRIME.test(c.text) ? 'crime' : 'incident';
         // xoay mẫu theo mốc giờ; tránh mẫu đã dùng ở mốc trước và trong cùng mục
         const bank = [...IDEAS[type], ...(type === 'general' ? [] : IDEAS.general)];
-        const order = bank.map((t, i) => ({ t, k: hash(slot + '|' + c.rep.u + '|' + t[0]) + (prevUsed.has(t[0]) ? 2 ** 32 : 0) + (i >= IDEAS[type].length ? 2 ** 31 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.t);
+        // ưu tiên mẫu riêng của loại sự kiện; trong đó ưu tiên mẫu chưa dùng ở mốc trước
+        const order = bank.map((t, i) => ({ t, k: hash(slot + '|' + c.rep.u + '|' + t[0]) + (prevUsed.has(t[0]) ? 2 ** 32 : 0) + (i >= IDEAS[type].length ? 2 ** 34 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.t);
         const ideas = [];
         for (const t of order) { if (ideas.length >= 3) break; if (usedTpl.has(t[0])) continue; usedTpl.add(t[0]); ideas.push({ id: t[0], h: fill(t[1], X), f: t[2], w: t[3] }); }
         const n = c.sources.size, k = c.cl.length;

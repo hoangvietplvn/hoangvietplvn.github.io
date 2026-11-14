@@ -79,3 +79,5 @@ Cứ 15 phút, GitHub Actions chạy `scripts/fetch-news.js` để lấy tiêu �
 Ở trang nhất, thanh điểm tin được thay bằng khu **Tin nổi bật** (`src/news.js`): các mục tin, 5 tin nóng mỗi mục, infographic tóm tắt khi bấm vào tin, và cụm gợi ý đề tài. Độ nóng chấm theo số báo cùng đưa một sự việc (các báo không công bố lượt xem); tóm tắt lấy từ tiêu đề và sapo trong RSS.
 
 Nguồn tin hiện gồm Nhân Dân, Báo Tin tức, Báo Chính phủ, CAND, Pháp luật Việt Nam, Dân Trí, VnExpress. Báo nào không có RSS (Pháp luật Việt Nam) thì khai địa chỉ trang chuyên mục; bộ lấy tin tự đọc các thẻ `<article>` trên trang đó. Tắt/bật phần blog trên trang nhất: mục **Trang nhất** trong trang quản trị (`show_blog` trong `homepage.json`).
+
+Cụm "Ý tưởng đề tài có thể thành trend": mỗi mục chọn tối đa 2 sự kiện đang lên có yếu tố dễ lan truyền (túi tiền, an toàn, bất ngờ, nhân vật nổi tiếng, người trẻ, mạng xã hội). Với mỗi sự kiện, máy rút chủ thể và bung 3 đề tài từ kho mẫu theo loại sự kiện (sự cố, vụ án, chính sách, quốc tế, công nghệ, tin đồn, nhân vật). Kho mẫu nằm trong `scripts/fetch-news.js` (hằng `IDEAS`); đổi lúc 12:00 và 21:00.
