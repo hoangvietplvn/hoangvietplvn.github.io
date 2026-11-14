@@ -195,3 +195,58 @@
   hub.hidden = false;
   document.body.classList.add('has-hub');
 })();
+
+/* Hiệu ứng nền công nghệ cho dải đầu trang: mạng lưới điểm sáng trôi + sóng nước chạy ngang */
+(() => {
+  const hub = document.querySelector('.hub');
+  if (!hub || !document.body.classList.contains('home')) return;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fx = document.createElement('div'); fx.className = 'hub-fx'; fx.setAttribute('aria-hidden', 'true');
+  const cv = document.createElement('canvas');
+  const w1 = document.createElement('div'); w1.className = 'hub-wave w1';
+  const w2 = document.createElement('div'); w2.className = 'hub-wave w2';
+  fx.append(cv, w1, w2);
+  hub.prepend(fx);
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0, dpr = 1, pts = [], mouse = null, raf = 0, visible = true;
+  function size() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = fx.clientWidth; H = fx.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.max(24, Math.min(80, Math.round(W * H / 11000)));
+    pts = Array.from({ length: n }, () => ({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35, r: Math.random() * 1.6 + .8, p: Math.random() * Math.PI * 2 }));
+  }
+  function frame(t) {
+    ctx.clearRect(0, 0, W, H);
+    const LINK = W < 600 ? 95 : 135;
+    for (const p of pts) {
+      if (!still) { p.x += p.vx; p.y += p.vy; if (p.x < -10) p.x = W + 10; if (p.x > W + 10) p.x = -10; if (p.y < -10) p.y = H + 10; if (p.y > H + 10) p.y = -10; }
+    }
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      for (let j = i + 1; j < pts.length; j++) {
+        const b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy);
+        if (d < LINK) { ctx.strokeStyle = `rgba(255,255,255,${(1 - d / LINK) * .28})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      }
+      if (mouse) {
+        const dx = a.x - mouse.x, dy = a.y - mouse.y, d = Math.hypot(dx, dy);
+        if (d < 170) { ctx.strokeStyle = `rgba(214,247,255,${(1 - d / 170) * .55})`; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); }
+      }
+    }
+    for (const p of pts) {
+      const glow = .55 + .45 * Math.sin((t || 0) / 900 + p.p);
+      ctx.fillStyle = `rgba(255,255,255,${.35 + glow * .5})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+    if (!still && visible && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+  const start = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); };
+  // đo lại mỗi khi vùng đầu trang đổi kích thước (kể cả lúc khu tin vừa hiện ra)
+  let rt, lastW = -1, lastH = -1;
+  new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (fx.clientWidth === lastW && fx.clientHeight === lastH) return; lastW = fx.clientWidth; lastH = fx.clientHeight; if (lastW && lastH) { size(); start(); } }, 60); }).observe(fx);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) start(); });
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) start(); }).observe(fx);
+  hub.addEventListener('pointermove', (e) => { const r = fx.getBoundingClientRect(); const y = e.clientY - r.top; mouse = y >= 0 && y <= r.height ? { x: e.clientX - r.left, y } : null; });
+  hub.addEventListener('pointerleave', () => { mouse = null; });
+})();

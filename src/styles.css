@@ -868,3 +868,27 @@ figcaption { margin-top: 10px; font: 400 13px/1.5 var(--sans); color: var(--ink-
 .home .btn:hover { background: var(--sea); color: #fff; }
 @media (max-width: 900px) { .home .hub::before { height: 560px; } }
 @media (max-width: 600px) { .home .hub::before { height: 640px; } }
+
+/* ============ Hiệu ứng nền công nghệ (trang nhất) ============ */
+.home .hub { --band: 470px; }
+.home .hub::before { height: var(--band);
+  background:
+    radial-gradient(700px 360px at 85% 10%, rgba(126, 232, 250, .55), transparent 65%),
+    radial-gradient(600px 300px at 5% 0%, rgba(255, 255, 255, .25), transparent 60%),
+    linear-gradient(135deg, #075aa6 0%, #0a7fd0 45%, #1aa6e6 75%, #3cc6ee 100%);
+  background-size: auto, auto, 200% 200%; animation: o-flow 18s ease-in-out infinite alternate; }
+@keyframes o-flow { from { background-position: 0 0, 0 0, 0% 50%; } to { background-position: 0 0, 0 0, 100% 50%; } }
+.home .hub-fx { position: absolute; left: 0; right: 0; top: 0; height: var(--band); z-index: 0; pointer-events: none; overflow: hidden; }
+.home .hub-fx canvas { position: absolute; inset: 0; display: block; }
+.home .hub-wave { position: absolute; left: 0; right: 0; bottom: -1px; height: 90px; background-repeat: repeat-x; background-size: 1440px 90px; }
+.home .hub-wave.w1 { bottom: 14px; opacity: .55; animation: o-wave 22s linear infinite;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 90' preserveAspectRatio='none'%3E%3Cpath d='M0 45 Q360 5 720 45 T1440 45 V90 H0Z' fill='%23ffffff' fill-opacity='.35'/%3E%3C/svg%3E"); }
+.home .hub-wave.w2 { animation: o-wave 14s linear infinite reverse;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 90' preserveAspectRatio='none'%3E%3Cpath d='M0 55 Q360 85 720 55 T1440 55 V90 H0Z' fill='%23e3f2fc'/%3E%3C/svg%3E"); }
+@keyframes o-wave { from { background-position-x: 0; } to { background-position-x: 1440px; } }
+/* lưới nền trôi chậm */
+.home::after { animation: o-grid 40s linear infinite; }
+@keyframes o-grid { from { background-position: 0 0, 0 0; } to { background-position: 56px 56px, 56px 56px; } }
+@media (max-width: 900px) { .home .hub { --band: 560px; } }
+@media (max-width: 600px) { .home .hub { --band: 640px; } .home .hub-wave { background-size: 900px 70px; height: 70px; } @keyframes o-wave { from { background-position-x: 0; } to { background-position-x: 900px; } } }
+@media (prefers-reduced-motion: reduce) { .home .hub::before, .home .hub-wave, .home::after { animation: none !important; } }
