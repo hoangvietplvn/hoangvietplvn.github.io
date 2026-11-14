@@ -143,7 +143,7 @@ function shell({ title, description, root, body, cls = '', image = '', canonical
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-${cls.split(' ').includes('home') ? '<meta name="theme-color" content="#041a2e">' : ''}
+${cls.split(' ').includes('home') ? '<meta name="theme-color" content="#0a6fc2">' : ''}
 <title>${esc(full)}</title>
 <meta name="description" content="${esc(description || cfg.description)}">
 <meta property="og:title" content="${esc(title || cfg.title)}">
