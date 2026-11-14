@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 5; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 8; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -297,45 +297,165 @@ function original(phrase, title) {
   const DIGITAL = W('ai|trí tuệ nhân tạo|chatbot|ứng dụng|nền tảng|mạng xã hội|dữ liệu|robot|camera|định danh|sinh trắc|tài sản số|tiền số|blockchain|microsoft|google|meta|openai');
   // tin lễ tân, ảnh, đồ hoạ: không phải chất liệu để mở góc mới
   const SKIP = /^\s*\[(ảnh|infographic|video|photo|emagazine|longform)\]|tiếp (đặc phái viên|đại sứ|đoàn|chủ tịch|thủ tướng|bộ trưởng)|hội kiến|hội đàm|điện mừng|thư mừng|thư chúc mừng|chúc mừng|thăm chính thức|lễ đón|chiêu đãi|dâng hương|tưởng niệm|kỷ niệm \d+ năm/iu;
-  const ANGLES = [
-    { id: 'ke-ho', name: 'Kẽ hở quy định', q: 'Kẽ hở nào trong quy định đã bị lợi dụng, và cần vá ra sao?', what: 'kẽ hở hay bất cập của quy định hiện hành',
-      has: W('lỗ hổng|kẽ hở|bất cập|khoảng trống pháp lý|sửa luật|cần sửa|hoàn thiện pháp luật|hoàn thiện quy định|hoàn thiện thể chế|kiến nghị'), fit: (c) => CRIME.test(c.text), cats: ['Pháp luật', 'Thời sự', 'Xã hội'] },
-    { id: 'phap-ly', name: 'Góc pháp lý', q: 'Ai chịu trách nhiệm pháp lý và bồi thường, theo quy định nào?', what: 'trách nhiệm pháp lý hay việc bồi thường',
-      has: W('trách nhiệm pháp lý|trách nhiệm hình sự|trách nhiệm dân sự|trách nhiệm bồi thường|bồi thường|chế tài|mức phạt|khung hình phạt|luật sư|theo điều|theo quy định|theo bộ luật|xử lý hình sự|xử lý trách nhiệm'), fit: (c) => INCIDENT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Pháp luật', 'Khoa học Công nghệ'] },
-    { id: 'tu-ve', name: 'Cẩm nang cho người dân', q: 'Người dân cần làm gì để nhận biết, phòng tránh và đòi quyền lợi?', what: 'hướng dẫn cụ thể cho người dân',
-      has: W('cách nhận biết|cách phòng|cách xử lý|cần làm gì|nên làm gì|hướng dẫn|khuyến cáo|cảnh báo|lưu ý|dấu hiệu nhận biết|quyền lợi'), fit: (c) => SCAM.test(c.text), cats: ['Pháp luật', 'Xã hội', 'Khoa học Công nghệ', 'Thời sự'] },
-    { id: 'thuc-thi', name: 'Khâu thực thi', q: 'Ai giám sát việc thực thi, nguồn lực ở đâu và dễ vướng ở khâu nào?', what: 'khâu giám sát và điều kiện thực thi',
-      has: W('giám sát|thực thi|hậu kiểm|khả thi|nguồn lực|lộ trình|vướng mắc|tổ chức thực hiện|hướng dẫn thi hành'), fit: (c) => ENACTED.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
-    { id: 'quoc-te', name: 'So sánh quốc tế', q: 'Các nước đã xử lý vấn đề này thế nào, và bài học nào dùng được cho Việt Nam?', what: 'kinh nghiệm của các nước',
-      has: W('kinh nghiệm quốc tế|kinh nghiệm các nước|kinh nghiệm thế giới|các nước|nước ngoài|quốc tế|thế giới|khu vực|nhật bản|hàn quốc|singapore|trung quốc|châu âu|mỹ|asean'), fit: (c) => POLICY.test(c.text) && !CRIME.test(c.text) && !INCIDENT.test(c.text), cats: ['Thời sự', 'Pháp luật', 'Xã hội', 'Khoa học Công nghệ'] },
-    { id: 'viet-nam', name: 'Tác động tới Việt Nam', q: 'Diễn biến này tác động gì tới Việt Nam, doanh nghiệp và người lao động Việt?', what: 'tác động tới Việt Nam',
-      has: W('việt nam|người việt|doanh nghiệp việt|trong nước|hà nội'), fit: (c) => WORLD.test(c.text), cats: ['Quốc tế'] },
-    { id: 'kinh-phi', name: 'Bài toán kinh phí', q: 'Tiền ở đâu ra, ai chi trả và ai được hưởng lợi?', what: 'nguồn kinh phí và người chi trả',
-      has: W('chi phí|kinh phí|ngân sách|nguồn vốn|vốn đầu tư|tỷ đồng|tỉ đồng|triệu usd|tỷ usd|đền bù'), fit: (c) => PROJECT.test(c.text) && !CRIME.test(c.text), cats: ['Thời sự', 'Xã hội', 'Khoa học Công nghệ'] },
-    { id: 'du-lieu', name: 'Nhìn bằng số liệu', q: 'Những vụ việc tương tự xảy ra dày đến mức nào? Thống kê nói gì về xu hướng?', what: 'số liệu thống kê hay bức tranh toàn cảnh',
-      has: W('thống kê|số liệu|toàn cảnh|nhìn lại|từ đầu năm|cùng kỳ|so với năm'), fit: (c) => INCIDENT.test(c.text) || CRIME.test(c.text), cats: ['Xã hội', 'Pháp luật', 'Thời sự'] },
-    { id: 'rui-ro-so', name: 'Rủi ro pháp lý số', q: 'Rủi ro pháp lý, dữ liệu cá nhân và trách nhiệm của nền tảng nằm ở đâu?', what: 'rủi ro pháp lý hay dữ liệu cá nhân',
-      has: W('pháp lý|quyền riêng tư|dữ liệu cá nhân|bản quyền|trách nhiệm|rủi ro|an toàn thông tin|bảo mật|lừa đảo|quy định'), fit: (c) => DIGITAL.test(c.text), cats: ['Khoa học Công nghệ'] },
-  ];
   const withText = stories.map((c) => ({ ...c, text: c.cl.map((x) => x.t + '. ' + x.sapo).join(' \n ') }));
-  function suggest() {
+  /* ---------- Ý tưởng đề tài có thể thành trend ----------
+     Mỗi sự kiện đang lên: rút chủ thể của sự kiện, nhận dạng loại sự kiện và các yếu tố dễ lan truyền,
+     rồi bung ra 3 đề tài có tiêu đề riêng từ kho mẫu theo loại. Mẫu được xoay vòng theo mốc 12:00 / 21:00. */
+  const IDEAS = {
+    incident: [
+      ['i1', 'Sau {X}: 5 điều cần kiểm tra ngay trong nhà bạn', 'Infographic dạng checklist', 'checklist hữu ích, dễ được lưu và chia sẻ vào nhóm gia đình'],
+      ['i2', '{X} qua lời kể của những người có mặt', 'Phóng sự nhân chứng, video dọc', 'câu chuyện người thật, cảm xúc thật giữ người xem tới cuối'],
+      ['i3', 'Những câu hỏi chưa có lời đáp sau {X}', 'Bài phân tích', 'đặt đúng câu người đọc đang thắc mắc nên dễ kéo bình luận'],
+      ['i4', '60 giây tái hiện {X}', 'Video đồ hoạ ngắn', 'video ngắn tái hiện diễn biến hợp thuật toán TikTok, Reels'],
+      ['i5', 'Gặp tình huống như {X}, làm gì trong 5 phút đầu?', 'Video hướng dẫn kỹ năng', 'kỹ năng thực dụng, người xem có lý do gửi cho người thân'],
+      ['i6', '{X}: những người hùng thầm lặng', 'Chân dung ngắn', 'câu chuyện tích cực giữa tin buồn thường lan toả mạnh'],
+      ['i7', 'Bản đồ những vụ tương tự {X} từ đầu năm', 'Bản đồ tương tác', 'bức tranh toàn cảnh khiến người đọc bất ngờ về mức độ phổ biến'],
+    ],
+    crime: [
+      ['c1', 'Giải mã thủ đoạn trong {X}: kịch bản được dựng thế nào?', 'Infographic từng bước', 'người đọc tò mò cách kẻ gian vận hành và chia sẻ để cảnh báo người thân'],
+      ['c2', '{X}: dòng tiền đã chạy đi đâu?', 'Sơ đồ dòng tiền', 'đồ hoạ "theo dấu tiền" gây tò mò, dễ lan trên mạng xã hội'],
+      ['c3', 'Từ {X}, nhìn lại những vụ án tương tự từng gây chấn động', 'Bài tổng hợp', 'gợi lại vụ cũ ai cũng nhớ làm tăng lượt đọc và bình luận'],
+      ['c4', '3 dấu hiệu giúp bạn không trở thành nạn nhân như trong {X}', 'Video ngắn cảnh báo', 'nội dung tự vệ thực dụng, người xem chủ động chia sẻ'],
+      ['c5', '{X}: những người bị hại giờ ra sao?', 'Phóng sự', 'góc con người phía sau con số, ít báo làm'],
+      ['c6', 'Hỏi luật sư 60 giây: {X} sẽ bị xử lý thế nào?', 'Video hỏi – đáp pháp luật', 'hỏi – đáp ngắn hợp mạng xã hội và đúng thế mạnh báo pháp luật'],
+      ['c7', 'Dòng thời gian {X}: từ lúc phát hiện đến hôm nay', 'Timeline', 'giúp người đến sau theo kịp câu chuyện, dễ được ghim và chia sẻ'],
+    ],
+    policy: [
+      ['p1', '{X}: ví tiền của bạn thay đổi thế nào?', 'Infographic tính toán', 'người đọc muốn biết ngay mình được – mất gì'],
+      ['p2', '10 câu hỏi ai cũng thắc mắc về {X}', 'Hỏi – đáp', 'dạng hỏi – đáp dễ tìm thấy trên Google và dễ chia sẻ'],
+      ['p3', '{X}: ai được lợi nhất, ai phải thay đổi nhiều nhất?', 'Bảng so sánh', 'chia rõ "được – mất" kích thích bình luận, tranh luận'],
+      ['p4', 'Người trẻ nghĩ gì về {X}?', 'Phỏng vấn đường phố, video dọc', 'phỏng vấn nhanh người trẻ rất hợp TikTok, Reels'],
+      ['p5', 'Trước và sau {X}: 5 thay đổi trong đời sống hằng ngày', 'Infographic trước – sau', 'so sánh trực quan dễ hiểu, dễ lan'],
+      ['p6', 'Trắc nghiệm: bạn hiểu đúng bao nhiêu về {X}?', 'Quiz tương tác', 'quiz kéo người đọc tương tác và thách bạn bè làm thử'],
+      ['p7', '{X} giải thích trong 60 giây', 'Video ngắn', 'chính sách khô được "dịch" ngắn gọn luôn có người xem'],
+    ],
+    world: [
+      ['w1', '{X}: chuyện gì đang thực sự diễn ra?', 'Bài giải thích 3 phút', 'khi tin dồn dập, người đọc cần một bản giải thích gọn'],
+      ['w2', '3 kịch bản tiếp theo của {X}', 'Phân tích dự báo', 'dự báo khiến người đọc quay lại kiểm chứng và tranh luận'],
+      ['w3', '{X} chạm tới giá xăng, giá vàng và việc làm ở Việt Nam ra sao?', 'Infographic tác động', 'kéo chuyện thế giới về túi tiền người Việt'],
+      ['w4', '{X} qua 5 con số', 'Infographic số liệu', 'con số gây bất ngờ là chất liệu chia sẻ mạnh'],
+      ['w5', 'Người Việt tại chỗ kể gì về {X}?', 'Phóng sự kết nối', 'góc nhìn người Việt ở nơi xảy ra sự việc, ít báo có'],
+      ['w6', 'Mạng xã hội thế giới đang nói gì về {X}?', 'Tổng hợp phản ứng', 'tổng hợp bình luận, ảnh chế quốc tế rất dễ viral'],
+    ],
+    tech: [
+      ['t1', 'Kiểm chứng {X}: có như lời đồn?', 'Video trải nghiệm', 'trải nghiệm thật có sức thuyết phục và lượt xem cao'],
+      ['t2', '{X} có ảnh hưởng tới điện thoại, tài khoản của bạn?', 'Hướng dẫn tự kiểm tra', 'người dùng lo cho chính mình nên chủ động bấm xem'],
+      ['t3', 'Giải thích {X} cho người không rành công nghệ', 'Explainer bằng hình', 'nhóm độc giả lớn nhất cần một bản dễ hiểu'],
+      ['t4', 'Từ {X}: 5 việc cần làm ngay để bảo vệ dữ liệu của bạn', 'Checklist', 'checklist làm được ngay được lưu và chia sẻ nhiều'],
+      ['t5', '{X} mở ra cơ hội gì cho người Việt?', 'Phân tích', 'góc "cơ hội" tích cực hợp với người trẻ, giới khởi nghiệp'],
+      ['t6', 'Dân mạng phản ứng thế nào trước {X}?', 'Tổng hợp phản ứng', 'tổng hợp bình luận, ảnh chế dễ lan'],
+    ],
+    rumor: [
+      ['r1', '{X}: bắt đầu từ đâu, lan đi thế nào?', 'Infographic đường lan truyền', 'vẽ lại đường đi của một tin đồn luôn gây tò mò'],
+      ['r2', 'Từ {X}: 5 dấu hiệu nhận ra tin giả trên mạng', 'Video ngắn', 'kỹ năng nhận diện tin giả được chia sẻ mạnh trong các nhóm gia đình'],
+      ['r3', 'Truy vết {X}: ai tung tin, vì sao?', 'Phóng sự truy vết', 'tò mò về người đứng sau tin giả là động lực đọc lớn'],
+      ['r4', 'Chia sẻ {X} có thể bị phạt bao nhiêu?', 'Hỏi – đáp pháp luật', 'người dùng mạng xã hội muốn biết mình có vô tình vi phạm không'],
+      ['r5', 'Vì sao {X} dễ khiến người ta tin?', 'Phân tích tâm lý', 'giải thích tâm lý đám đông hợp với người trẻ'],
+    ],
+    people: [
+      ['m1', 'Chân dung {X}: những điều ít ai biết', 'Longform chân dung', 'tò mò về nhân vật là động lực đọc mạnh nhất'],
+      ['m2', '{X} qua 7 khoảnh khắc', 'Chuỗi ảnh, video dòng thời gian', 'định dạng lướt nhanh hợp thói quen đọc trên điện thoại'],
+      ['m3', 'Bài học gì từ câu chuyện {X}?', 'Bình luận', 'góc bài học dễ được chia sẻ kèm lời bình'],
+    ],
+    general: [
+      ['g1', '{X}: dòng thời gian từ đầu đến giờ', 'Timeline', 'giúp người đến sau theo kịp câu chuyện'],
+      ['g2', 'Mạng xã hội đang nói gì về {X}?', 'Tổng hợp phản ứng', 'tổng hợp ý kiến trái chiều kích thích tranh luận'],
+      ['g3', '{X} qua 5 con số đáng chú ý', 'Infographic số liệu', 'con số bất ngờ dễ được chụp lại và chia sẻ'],
+      ['g4', 'Hỏi nhanh – đáp gọn về {X}', 'Hỏi – đáp', 'trả lời đúng câu người đọc đang tìm'],
+      ['g5', 'Người trong cuộc kể về {X}', 'Phỏng vấn', 'góc nhìn từ bên trong mà tin vắn không có'],
+      ['g6', 'Điều gì sẽ xảy ra tiếp theo với {X}?', 'Phân tích', 'câu hỏi mở khiến người đọc theo dõi tiếp'],
+    ],
+  };
+  // các yếu tố khiến một sự kiện dễ lan truyền
+  const SIGNALS = [
+    [W('giá|lương|thuế|phí|tiền|lãi suất|học phí|bảo hiểm|vàng|xăng|tiền điện|giá điện|nhà ở|chung cư|tiết kiệm|nợ'), 'chạm tới túi tiền của người đọc'],
+    [W('nổ|cháy|sập|tai nạn|ngộ độc|lừa đảo|dịch|bệnh|bão|lũ|sạt lở|động đất|tử vong|thiệt mạng|mất tích|an toàn'), 'liên quan trực tiếp tới an toàn của mỗi người'],
+    [W('tranh cãi|xôn xao|phẫn nộ|bức xúc|gây sốc|sốc|bất ngờ|lần đầu|kỷ lục|chưa từng|bê bối|ngoại tình|bí ẩn|lạ'), 'có yếu tố bất ngờ, gây tranh luận'],
+    [W('ca sĩ|diễn viên|hoa hậu|tỷ phú|tỉ phú|ceo|cầu thủ|tiktoker|kol|người nổi tiếng|nghệ sĩ|ngôi sao|influencer'), 'gắn với nhân vật được nhiều người biết'],
+    [W('học sinh|sinh viên|gen z|giới trẻ|người trẻ|tuyển sinh|thi tốt nghiệp|trường học|đại học'), 'chạm tới người trẻ, nhóm chia sẻ mạnh nhất trên mạng'],
+    [W('mạng xã hội|tiktok|facebook|clip|video|livestream|dân mạng|cộng đồng mạng|viral'), 'đã có dấu hiệu lan trên mạng xã hội'],
+  ];
+  const RUMOR = W('tin đồn|tin giả|thông tin sai sự thật|sai sự thật|bịa đặt|thất thiệt|xuyên tạc|bác bỏ thông tin|không đúng sự thật');
+  const DOC = /(?<![\p{L}])(luật|bộ luật|nghị định|nghị quyết|thông tư|dự thảo|đề xuất|quy định mới|chính sách)(?![\p{L}])/iu;
+  const typeOf = (c) => {
+    if (RUMOR.test(c.rep.t)) return 'rumor';
+    if (CRIME.test(c.text)) return 'crime';
+    if (DOC.test(c.rep.t)) return 'policy';
+    if (INCIDENT.test(c.text)) return 'incident';
+    if (c.cat === 'Quốc tế') return 'world';
+    if (c.cat === 'Khoa học Công nghệ' || DIGITAL.test(c.rep.t)) return 'tech';
+    if (POLICY.test(c.text) || PROJECT.test(c.text) || ENACTED.test(c.text)) return 'policy';
+    if (SIGNALS[3][0].test(c.rep.t)) return 'people';
+    return 'general';
+  };
+  // chủ thể của sự kiện: cụm "vụ …", tên văn bản / dự án, tên riêng lặp lại, hoặc vế đầu của tiêu đề
+  const CUT = /\s+(?:khiến|làm|gây|sau khi|trước khi|vì|do|bị|được|đã|đang|sẽ|cho thấy|là|có|tại sao|như thế nào|ra sao|nhằm|để)\s+|\s*(?:[:;?!…–—|(]|,\s|\.\s)\s*/u;
+  const words = (s, n) => s.split(/\s+/).slice(0, n).join(' ');
+  const tidy = (s) => { let x = s.replace(/^[\s"“”'‘’]+|[\s,;:.–—-]+$/g, '').replace(/\s+(ở|tại|trong|với|và|của|cho|từ|sau|trước)$/u, '').trim(); if (/“/.test(x) && !/”/.test(x)) x += '”'; return x; };
+  const fromKey = (t, re, n) => { const m = t.match(re); if (!m) return ''; const x = tidy(words(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0].replace(/^\s+/, ''), n)); return x.charAt(0).toLowerCase() + x.slice(1); };
+  const CRIME_KEY = /(?<![\p{L}])(lừa đảo|chiếm đoạt|tham ô|buôn lậu|hàng giả|cưỡng đoạt|ma túy|đánh bạc|sát hại|hối lộ|trộm|cướp|đường dây|tín dụng đen|rửa tiền|trốn thuế|mua bán hóa đơn)(?![\p{L}])/iu;
+  const INC_KEY = /(?<![\p{L}])(vụ nổ|nổ|cháy|hỏa hoạn|sập|tai nạn|sạt lở|ngộ độc|lũ quét|lật xe|chìm tàu|đuối nước|rò rỉ)(?![\p{L}])/iu;
+  function subjectOf(c, type) {
+    const titles = [c.rep.t, ...c.cl.map((x) => x.t).filter((t) => t !== c.rep.t)];
+    if (type === 'rumor') {
+      for (const t of titles) { const q = t.match(/[“"]([^”"]{6,70})[”"]/); if (q) return `tin đồn “${q[1].trim()}”`; }
+      for (const t of titles) { const m = t.match(/(?:tin đồn|tin giả|sai sự thật|bịa đặt|thất thiệt|xuyên tạc)\s+(?:về\s+)?(?:việc\s+)?([^:;?!…–—|(]{6,80})/iu); if (m) { const x = tidy(words(m[1].split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'tin đồn ' + x; } }
+    }
+    for (const t of titles) {
+      const m = t.match(/(?:^|\s)((?:vụ|Vụ) [^:;?!…–—|(]{4,90})/u);
+      if (m) { const x = tidy(words(m[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 9)); if (x.split(' ').length >= 3) return x; }
+    }
+    if (type === 'crime') { const x = fromKey(c.rep.t, CRIME_KEY, 7); if (x.split(' ').length >= 2) return 'vụ ' + x; }
+    if (type === 'incident') { const x = fromKey(c.rep.t, INC_KEY, 7); if (x.split(' ').length >= 2) return /^vụ\s/iu.test(x) ? x : 'vụ ' + x; }
+    for (const t of titles) {
+      const m = t.match(/(?<![\p{L}])((?:luật|bộ luật|nghị định|nghị quyết|thông tư|quy hoạch|đề án|dự án|chương trình|chiến dịch|hội nghị|đại hội|lễ hội|giải|chính sách|kế hoạch|dự thảo)(?:\s+[^\s:;?!…–—|(]+){1,8})/iu);
+      if (m) { const x = tidy(m[1].split(/\s+(?:khiến|làm|gây|được|đã|đang|sẽ|cho|tại|ở|từ|trong|nhằm|để|dài|với)\s+|,\s/u)[0]); if (x.split(' ').length >= 2) return x; }
+    }
+    // tên riêng (chuỗi chữ viết hoa) xuất hiện ở nhiều tiêu đề
+    const cnt = new Map();
+    for (const t of titles) for (const m of t.matchAll(/(?<![\p{L}])(\p{Lu}[\p{L}\d]*(?:\s+\p{Lu}[\p{L}\d]*){1,4})/gu)) {
+      const k = m[1]; if (/^(Tổng Bí thư|Chủ tịch|Thủ tướng|Bộ trưởng|Phó Thủ tướng|Quốc hội|Chính phủ|TP|UBND|Công an|Chủ tịch nước)$/u.test(k)) continue;
+      cnt.set(k, (cnt.get(k) || 0) + 1);
+    }
+    const best = [...cnt].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
+    if (best && best[1] >= 2) return best[0];
+    const first = c.rep.t.replace(/^\[[^\]]+\]\s*/, '').split(CUT)[0];
+    const head = tidy(words(first, first.split(/\s+/).length <= 11 ? 11 : 9));
+    return head.split(' ').length >= 3 ? head : tidy(words(c.rep.t, 11));
+  }
+  const fill = (tpl, x) => {
+    const lead = tpl.startsWith('{X}');
+    const common = /^(Vụ|Tin|Dự|Đề|Chương|Chiến|Quy|Kế|Chính|Bắt|Khởi|Xử|Sập|Cháy|Nổ|Tai|Phê|Thông|Công|Người|Hàng|Nhiều|Các|Những|Một|Hơn|Gần|Phát|Tạm|Truy|Điều|Triệt|Cảnh|Đề|Lần|Mưa|Bão|Lũ|Sạt|Ngộ|Đường|Dòng|Giá|Học|Sinh)$/u;
+    const first = x.split(' ')[0];
+    const xx = lead ? x.charAt(0).toUpperCase() + x.slice(1) : (common.test(first) ? x.charAt(0).toLowerCase() + x.slice(1) : x);
+    return tpl.replace('{X}', xx);
+  };
+  const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
+  function suggest(slot, prevUsed) {
     const out = [], taken = [];
     for (const cat of categories) {
-      const pool = withText.filter((c) => c.cat === cat.name).sort((a, b) => b.sources.size - a.sources.size || b.score - a.score);
-      const items = [], usedAngles = new Set();
-      for (const minSrc of [2, 1]) for (const c of pool) { // ưu tiên sự việc nhiều báo đưa; thiếu thì lấy cả sự việc mới có một báo
-        if (items.length >= 3) break;
-        if (c.used || c.sources.size < minSrc || SKIP.test(c.rep.t) || taken.some((o) => sameStory(o.rep, c.rep))) continue;
-        const angle = ANGLES.find((a) => a.cats.includes(c.cat) && !usedAngles.has(a.id) && a.fit(c) && !a.has.test(c.text));
-        if (!angle) continue;
-        c.used = true; taken.push(c); usedAngles.add(angle.id);
+      const pool = withText.filter((c) => c.cat === cat.name && !SKIP.test(c.rep.t)).map((c) => {
+        const hits = SIGNALS.filter(([re]) => re.test(c.text)).map(([, label]) => label);
+        const newest = Math.min(...c.cl.map(age));
+        const viral = c.sources.size * 2 + Math.min(c.cl.length, 8) * 0.4 + hits.length * 1.5 + (newest < 3 ? 1.5 : newest < 8 ? 0.7 : 0);
+        return { ...c, hits, newest, viral };
+      }).sort((a, b) => b.viral - a.viral);
+      const items = [], usedTpl = new Set();
+      for (const c of pool) {
+        if (items.length >= 2) break;
+        if (taken.some((o) => sameStory(o.rep, c.rep))) continue;
+        taken.push(c);
+        const type = typeOf(c), X = subjectOf(c, type);
+        // xoay mẫu theo mốc giờ; tránh mẫu đã dùng ở mốc trước và trong cùng mục
+        const bank = [...IDEAS[type], ...(type === 'general' ? [] : IDEAS.general)];
+        const order = bank.map((t, i) => ({ t, k: hash(slot + '|' + c.rep.u + '|' + t[0]) + (prevUsed.has(t[0]) ? 2 ** 32 : 0) + (i >= IDEAS[type].length ? 2 ** 31 : 0) })).sort((a, b) => a.k - b.k).map((o) => o.t);
+        const ideas = [];
+        for (const t of order) { if (ideas.length >= 3) break; if (usedTpl.has(t[0])) continue; usedTpl.add(t[0]); ideas.push({ id: t[0], h: fill(t[1], X), f: t[2], w: t[3] }); }
         const n = c.sources.size, k = c.cl.length;
-        items.push({
-          angle: angle.name, q: angle.q, n, k, story: { t: c.rep.t, u: c.rep.u, s: c.rep.s },
-          why: n > 1
-            ? `${n} báo đã đăng ${k} bài về sự việc này, nhưng chưa bài nào nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc đang được theo dõi rộng, nên một bài đi riêng góc này có chỗ đứng.`
-            : `Mới có ${c.rep.s} đưa tin, và bài chưa nhắc tới ${angle.what} trong tiêu đề và phần mở đầu. Sự việc còn mới, đi trước góc này sẽ không trùng ai.`,
-        });
+        const pace = n > 1 ? `${n} báo đã đưa ${k} bài` : `Mới có ${c.rep.s} đưa tin`;
+        const fresh = c.newest < 3 ? ', bài mới nhất chỉ cách đây ' + (c.newest < 1 ? Math.max(1, Math.round(c.newest * 60)) + ' phút' : Math.round(c.newest) + ' giờ') : '';
+        const why = `${pace}${fresh}.` + (c.hits.length ? ` Sự kiện ${c.hits.slice(0, 2).join(' và ')}.` : '') + (n <= 2 ? ' Còn ít báo khai thác nên đi trước dễ tạo dấu ấn.' : '');
+        items.push({ story: { t: c.rep.t, u: c.rep.u, s: c.rep.s }, n, k, subject: X, type, why, ideas });
       }
       if (items.length) out.push({ name: cat.name, items });
     }
@@ -347,9 +467,10 @@ function original(phrase, title) {
   const lastMark = Math.max(...marks.filter((m) => m <= now)), nextMark = Math.min(...marks.filter((m) => m > now));
   const old = prev.topics;
   const keep = prev.v === VERSION && old && Array.isArray(old.cats) && old.cats.length && Date.parse(old.at) >= lastMark && !process.env.NEWS_FORCE_TOPICS;
-  const topics = keep ? { ...old, next: new Date(nextMark).toISOString() } : { at: new Date().toISOString(), next: new Date(nextMark).toISOString(), cats: suggest() };
-  const nTopics = topics.cats.reduce((n, c) => n + c.items.length, 0);
-  console.log(`  Gợi ý đề tài (${keep ? 'giữ bản lúc ' + old.at : 'tạo mới'}; lần đổi tới ${topics.next}):\n` + topics.cats.map((c) => `   ${c.name}:\n` + c.items.map((t) => `     · [${t.angle}] ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n')).join('\n'));
+  const prevUsed = new Set(((old && old.cats) || []).flatMap((c) => (c.items || []).flatMap((i) => (i.ideas || []).map((d) => d.id))));
+  const topics = keep ? { ...old, next: new Date(nextMark).toISOString() } : { at: new Date().toISOString(), next: new Date(nextMark).toISOString(), cats: suggest(String(lastMark), prevUsed) };
+  const nTopics = topics.cats.reduce((n, c) => n + c.items.reduce((m, i) => m + i.ideas.length, 0), 0);
+  console.log(`  Ý tưởng đề tài (${keep ? 'giữ bản lúc ' + old.at : 'tạo mới'}; lần đổi tới ${topics.next}):\n` + topics.cats.map((c) => `   ${c.name}:\n` + c.items.map((t) => `     ◆ ${t.story.t} [${t.type}] → chủ thể: «${t.subject}»\n       vì sao: ${t.why}\n` + t.ideas.map((d) => `        - ${d.h}  (${d.f})`).join('\n')).join('\n')).join('\n'));
 
   /* ---------- Cảnh báo tin giả ----------
      Nguồn chính thức (Trung tâm Xử lý tin giả Việt Nam - VAFC): lấy toàn bộ.

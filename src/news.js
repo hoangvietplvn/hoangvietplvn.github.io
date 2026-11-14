@@ -138,30 +138,39 @@
   }
   render(0);
 
-  /* ---- gợi ý đề tài: góc chưa báo nào khai thác, chia theo mục, đổi lúc 12:00 và 21:00 ---- */
-  const tcats = ((data.topics || {}).cats || []).filter((c) => c && Array.isArray(c.items) && c.items.length);
+  /* ---- ý tưởng đề tài có thể thành trend: theo mục, mỗi sự kiện bung 3 ý tưởng, đổi lúc 12:00 và 21:00 ---- */
+  const tcats = ((data.topics || {}).cats || []).filter((c) => c && Array.isArray(c.items) && c.items.some((i) => Array.isArray(i.ideas) && i.ideas.length));
   if (tcats.length) {
     const sec = el('section', 'hub-topics');
     const hd = el('div', 'topics-head');
     const hm = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? `${p2(d.getHours())}:${p2(d.getMinutes())} ngày ${p2(d.getDate())}/${p2(d.getMonth() + 1)}` : ''; };
     const stamp = [data.topics.at && `Bản lúc ${hm(data.topics.at)}`, data.topics.next && `đổi tiếp lúc ${hm(data.topics.next)}`].filter(Boolean).join(' · ');
-    hd.append(el('h2', 'hub-title', 'Đề tài chưa báo nào khai thác'), el('p', '', 'Góc tiếp cận mới cho những sự việc các báo đang đưa. Đổi hai lần mỗi ngày, lúc 12:00 và 21:00.'));
+    hd.append(el('h2', 'hub-title', 'Ý tưởng đề tài có thể thành trend'), el('p', '', 'Từ những sự kiện đang lên, gợi ý các đề tài và định dạng dễ lan truyền. Đổi hai lần mỗi ngày, lúc 12:00 và 21:00.'));
     const ttabs = el('div', 'hub-tabs topic-tabs'); ttabs.setAttribute('role', 'tablist');
-    const grid = el('div', 'topic-grid');
+    const grid = el('div', 'trend-grid');
     const show = (ci) => {
       [...ttabs.children].forEach((b, k) => b.setAttribute('aria-selected', k === ci ? 'true' : 'false'));
-      grid.replaceChildren(...tcats[ci].items.map((tp) => {
-        const c = el('article', 'topic');
-        const tags = el('p', 'topic-tags'); tags.append(el('span', 'kind', tp.angle || 'Góc mới'), el('span', '', tp.n > 1 ? `${tp.n} báo đang đưa` : 'Tin mới'));
-        const from = el('p', 'topic-from'); from.append(el('b', '', 'Từ sự việc: '), ext(tp.story), el('span', '', ' — ' + tp.story.s));
-        const why = el('p', 'topic-why'); why.append(el('b', '', 'Vì sao: '), document.createTextNode(tp.why));
-        c.append(tags, el('h3', '', tp.q), from, why);
-        return c;
+      grid.replaceChildren(...tcats[ci].items.filter((i) => i.ideas && i.ideas.length).map((ev) => {
+        const card = el('article', 'trend');
+        const top = el('div', 'trend-event');
+        const lbl = el('p', 'trend-label'); lbl.append(el('span', 'kind', 'Sự kiện'), el('span', '', ev.n > 1 ? `${ev.n} báo · ${ev.k} bài` : 'Tin mới'));
+        const h = el('h3'); h.append(ext(ev.story)); 
+        top.append(lbl, h, el('p', 'trend-src', ev.story.s));
+        const why = el('p', 'trend-why'); why.append(el('b', '', 'Vì sao có thể lan: '), document.createTextNode(ev.why));
+        const ol = el('ol', 'trend-ideas');
+        ev.ideas.forEach((d) => {
+          const li = el('li');
+          li.append(el('span', 'idea-h', d.h), el('span', 'idea-f', d.f));
+          if (d.w) li.append(el('span', 'idea-w', d.w.charAt(0).toUpperCase() + d.w.slice(1) + '.'));
+          ol.append(li);
+        });
+        card.append(top, why, ol);
+        return card;
       }));
     };
     tcats.forEach((c, i) => { const b = el('button', 'hub-tab', c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', () => show(i)); ttabs.append(b); });
     show(0);
-    sec.append(hd, ttabs, grid, el('p', 'topics-note', (stamp ? stamp + '. ' : '') + 'Gợi ý tạo tự động: máy đối chiếu tiêu đề và phần mở đầu của các bài đã đăng với một bộ góc khai thác có sẵn. Nên kiểm tra lại nội dung đầy đủ của các bài trước khi triển khai.'));
+    sec.append(hd, ttabs, grid, el('p', 'topics-note', (stamp ? stamp + '. ' : '') + 'Gợi ý tạo tự động từ dòng tin của các báo nguồn: máy rút chủ thể của sự kiện và ghép với kho mẫu đề tài theo loại sự kiện. Hãy biên tập lại tiêu đề và kiểm tra thông tin trước khi triển khai.'));
     wrap.append(sec);
   }
   hub.append(wrap, dlg);
