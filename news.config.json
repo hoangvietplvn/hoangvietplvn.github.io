@@ -172,5 +172,48 @@
         }
       ]
     }
-  ]
+  ],
+  "fake": {
+    "enabled": true,
+    "label": "Cảnh báo tin giả",
+    "feeds": [
+      {
+        "source": "Trung tâm Xử lý tin giả (VAFC)",
+        "url": "https://tingia.gov.vn/rss",
+        "official": true
+      },
+      {
+        "source": "Báo Chính phủ",
+        "url": "https://baochinhphu.vn/home.rss"
+      },
+      {
+        "source": "Nhân Dân",
+        "url": "https://nhandan.vn/rss/home.rss"
+      },
+      {
+        "source": "Báo Tin tức",
+        "url": "https://baotintuc.vn/rss/home.rss"
+      },
+      {
+        "source": "Báo Tin tức",
+        "url": "https://baotintuc.vn/rss/mang-xa-hoi-604.rss"
+      },
+      {
+        "source": "Báo Tin tức",
+        "url": "https://baotintuc.vn/rss/phan-hoi-473.rss"
+      },
+      {
+        "source": "CAND",
+        "url": "https://cand.vn/rss/home.rss"
+      },
+      {
+        "source": "Dân Trí",
+        "url": "https://dantri.com.vn/rss/home.rss"
+      },
+      {
+        "source": "VnExpress",
+        "url": "https://vnexpress.net/rss/tin-moi-nhat.rss"
+      }
+    ]
+  }
 }

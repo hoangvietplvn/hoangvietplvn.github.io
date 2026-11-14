@@ -39,31 +39,37 @@
   const t = new Date(data.updated), p2 = (n) => String(n).padStart(2, '0');
   const toBlog = el('a', 'hub-toblog', 'Xuống phần blog ↓'); toBlog.href = '#blog';
   head.append(el('span', 'nb-label', data.label || 'Tin nóng'), el('h2', 'hub-title', 'Tin nổi bật'), el('span', 'hub-updated', `Cập nhật ${p2(t.getHours())}:${p2(t.getMinutes())} · ${p2(t.getDate())}/${p2(t.getMonth() + 1)}`), toBlog);
+  const tabbar = el('div', 'hub-tabbar');
   const tabs = el('div', 'hub-tabs'); tabs.setAttribute('role', 'tablist');
+  tabbar.append(tabs);
   const hot = el('div', 'hub-hot');
   const dlg = el('dialog', 'info');
-  wrap.append(head, tabs, hot);
+  wrap.append(head, tabbar, hot);
 
   /* ---- infographic ---- */
-  function open(cat, it, rank) {
+  function open(cat, it, rank, warn) {
     const art = el('article');
     const hd = el('header', 'info-head');
     const close = el('button', 'info-close', '×'); close.type = 'button'; close.setAttribute('aria-label', 'Đóng');
     close.addEventListener('click', () => dlg.close());
-    hd.append(close, el('p', 'info-cat', `${cat.name} · Tin nóng số ${rank}`), el('h3', '', it.t), el('p', 'info-meta', meta(it)));
+    hd.append(close, el('p', 'info-cat', warn ? `⚠ ${cat.name} · ${it.kind || 'Cảnh báo'}` : `${cat.name} · Tin nóng số ${rank}`), el('h3', '', it.t), el('p', 'info-meta', meta(it) || it.s));
     art.append(hd);
     const im = pic(it.img, 'info-img'); if (im) art.append(im);
     const body = el('div', 'info-body');
     const sec = (title) => { const s = el('section', 'info-sec'); s.append(el('h4', '', title)); body.append(s); return s; };
     if (Array.isArray(it.p) && it.p.length) {
-      const ol = el('ol', 'info-points'); it.p.forEach((x) => ol.append(el('li', '', x))); sec('Điểm chính').append(ol);
+      const ol = el('ol', 'info-points'); it.p.forEach((x) => ol.append(el('li', '', x))); sec(warn ? 'Nội dung cảnh báo' : 'Điểm chính').append(ol);
     }
     if (Array.isArray(it.nums) && it.nums.length) {
       const g = el('div', 'info-nums');
       it.nums.forEach((x) => { const d = el('div'); d.append(el('b', '', x.v), el('span', '', x.c)); g.append(d); });
       sec('Con số').append(g);
     }
-    const hs = sec('Độ nóng');
+    if (warn) {
+      const ws = sec('Lưu ý');
+      ws.append(el('p', 'info-heatnote', 'Không chia sẻ lại nội dung đã bị cảnh báo. Gặp thông tin nghi là tin giả, bạn có thể phản ánh tới Trung tâm Xử lý tin giả Việt Nam qua trang tingia.gov.vn.'));
+    }
+    const hs = warn ? el('section') : sec('Độ nóng');
     hs.append(heat(it), el('p', 'info-heatnote', it.n > 1 ? `Sự việc được ${it.n} báo đưa tin với ${it.k} bài trong 30 giờ qua.` : 'Mới có một báo trong danh sách nguồn đưa tin này.'));
     if (Array.isArray(it.also) && it.also.length) {
       const ul = el('ul', 'info-also');
@@ -72,9 +78,9 @@
     }
     art.append(body);
     const ft = el('footer', 'info-foot');
-    ft.append(ext(it, 'info-cta', 'Xem toàn bộ nội dung →'), el('p', 'info-note', (it.x ? `Tóm tắt tự động: máy trích nguyên văn các câu chính trong bài trên ${it.s}.` : `Tóm tắt tự động từ tiêu đề và phần mở đầu của bài trên ${it.s}.`) + ' Độ nóng tính theo số báo cùng đưa tin, không phải lượt xem.'));
+    ft.append(ext(it, 'info-cta', 'Xem toàn bộ nội dung →'), el('p', 'info-note', (it.x ? `Tóm tắt tự động: máy trích nguyên văn các câu chính trong bài trên ${it.s}.` : `Tóm tắt tự động từ tiêu đề và phần mở đầu của bài trên ${it.s}.`) + (warn ? ' Hãy đọc văn bản gốc trước khi dẫn lại.' : ' Độ nóng tính theo số báo cùng đưa tin, không phải lượt xem.')));
     art.append(ft);
-    dlg.className = 'info'; dlg.replaceChildren(art);
+    dlg.className = warn ? 'info warn' : 'info'; dlg.replaceChildren(art);
     dlg.showModal(); dlg.scrollTop = 0;
   }
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
@@ -83,6 +89,8 @@
   function render(ci) {
     const cat = cats[ci];
     [...tabs.children].forEach((b, k) => b.setAttribute('aria-selected', k === ci ? 'true' : 'false'));
+    if (fakeBtn) fakeBtn.setAttribute('aria-selected', 'false');
+    hot.className = 'hub-hot';
     hot.replaceChildren(...cat.hot.slice(0, 5).map((it, i) => {
       const b = el('button', 'hot-card' + (i === 0 ? ' hot-lead' : '')); b.type = 'button';
       const im = pic(it.img, 'hot-img'); if (im) b.append(im); else b.classList.add('noimg');
@@ -95,7 +103,39 @@
       return b;
     }));
   }
+  /* ---- Cảnh báo tin giả: nút riêng, nổi bật ---- */
+  const fk = data.fake && Array.isArray(data.fake.items) && data.fake.items.length ? data.fake : null;
+  let fakeBtn = null;
+  const when = (it) => it.d || it.seen;
+  function renderFake() {
+    [...tabs.children].forEach((b) => b.setAttribute('aria-selected', 'false'));
+    fakeBtn.setAttribute('aria-selected', 'true');
+    hot.className = 'hub-hot is-fake';
+    const top = el('div', 'fake-head');
+    const txt = el('div');
+    txt.append(el('h3', '', fk.label), el('p', '', 'Tổng hợp cảnh báo, bác bỏ thông tin sai sự thật và xử lý người tung tin từ cơ quan chức năng, Trung tâm Xử lý tin giả Việt Nam (VAFC) và các báo nguồn. Bấm vào từng tin để xem tóm tắt.'));
+    top.append(el('span', 'fake-icon', '!'), txt);
+    const list = el('div', 'fake-list');
+    fk.items.forEach((it) => {
+      const b = el('button', 'fake-card' + (it.official ? ' official' : '')); b.type = 'button';
+      const tags = el('span', 'fake-tags');
+      tags.append(el('span', 'fake-kind k-' + (/xử lý/i.test(it.kind) ? 'dealt' : /giả mạo/i.test(it.kind) ? 'spoof' : 'deny'), it.kind || 'Cảnh báo'));
+      if (it.official) tags.append(el('span', 'fake-official', 'Nguồn chính thức'));
+      b.append(tags, el('span', 'fake-title', it.t), el('span', 'hot-meta', [it.s, when(it) && ago(when(it))].filter(Boolean).join(' · ')));
+      b.addEventListener('click', () => open({ name: fk.label }, { ...it, d: when(it) }, 0, true));
+      list.append(b);
+    });
+    hot.replaceChildren(top, list);
+  }
   cats.forEach((c, i) => { const b = el('button', 'hub-tab', c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', () => render(i)); tabs.append(b); });
+  if (fk) {
+    fakeBtn = el('button', 'fake-btn'); fakeBtn.type = 'button'; fakeBtn.setAttribute('role', 'tab');
+    const fresh = fk.items.filter((it) => Date.now() - Date.parse(when(it)) < 24 * 3600e3).length;
+    fakeBtn.append(el('span', 'fake-tri', '!'), el('span', 'fake-name', fk.label));
+    if (fresh) fakeBtn.append(el('span', 'fake-count', `${fresh} mới`));
+    fakeBtn.addEventListener('click', renderFake);
+    tabbar.append(fakeBtn);
+  }
   render(0);
 
   /* ---- gợi ý đề tài: góc chưa báo nào khai thác, chia theo mục, đổi lúc 12:00 và 21:00 ---- */

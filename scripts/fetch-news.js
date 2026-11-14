@@ -351,6 +351,82 @@ function original(phrase, title) {
   const nTopics = topics.cats.reduce((n, c) => n + c.items.length, 0);
   console.log(`  Gợi ý đề tài (${keep ? 'giữ bản lúc ' + old.at : 'tạo mới'}; lần đổi tới ${topics.next}):\n` + topics.cats.map((c) => `   ${c.name}:\n` + c.items.map((t) => `     · [${t.angle}] ← ${t.story.t} (${t.n} báo, ${t.k} bài)`).join('\n')).join('\n'));
 
-  fs.writeFileSync(OUT, JSON.stringify({ v: VERSION, updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics }));
+  /* ---------- Cảnh báo tin giả ----------
+     Nguồn chính thức (Trung tâm Xử lý tin giả Việt Nam - VAFC): lấy toàn bộ.
+     Các báo: chỉ giữ bài có tiêu đề nói về tin giả / thông tin sai sự thật / giả mạo
+     và có dấu hiệu cơ quan chức năng lên tiếng, bác bỏ hoặc xử lý. Danh sách được cộng dồn qua các lượt chạy. */
+  const fakeCfg = cfg.fake || {};
+  let fake = null;
+  if (fakeCfg.enabled !== false) {
+    const FAKE = W('tin giả|thông tin giả|thông tin sai sự thật|sai sự thật|thông tin sai lệch|sai lệch|bịa đặt|thất thiệt|xuyên tạc|không đúng sự thật|bác bỏ|deepfake|mạo danh|giả danh|giả mạo|cắt ghép|thông tin xấu độc|tin đồn');
+    const ACT = W('xử phạt|bị phạt|phạt|khởi tố|tạm giữ|triệu tập|làm việc|xử lý|cảnh báo|khuyến cáo|bác bỏ|khẳng định|lên tiếng|thông tin chính thức|chính thức|đề nghị|công an|bộ|sở|ubnd|ủy ban|cơ quan chức năng|cơ quan|trung tâm xử lý tin giả|vafc|ngân hàng nhà nước|tòa án|viện kiểm sát');
+    const DEALT = W('xử phạt|bị phạt|phạt tiền|phạt hành chính|khởi tố|tạm giữ|triệu tập|mời làm việc|mời lên làm việc|xử lý hành chính|xử lý nghiêm|bắt giữ|bắt tạm giam');
+    const SPOOF = W('giả mạo|mạo danh|giả danh|lừa đảo|deepfake|cắt ghép|trang giả|website giả|tài khoản giả|ứng dụng giả');
+    const kindOf = (x) => { const s = x.t + '. ' + x.sapo; return DEALT.test(s) ? 'Đã xử lý người tung tin' : SPOOF.test(x.t) ? 'Cảnh báo giả mạo, lừa đảo' : 'Bác bỏ tin sai'; };
+    const pool = [];
+    for (const x of everything) pool.push(x);
+    await Promise.all((fakeCfg.feeds || []).map(async (f) => {
+      if (!f || !/^https:\/\//i.test(f.url || '')) return;
+      const source = String(f.source || '').slice(0, 60);
+      try {
+        const body = await get(f.url);
+        const list = (/<item[\s>]/i.test(body) ? parse(body, source) : await parsePage(body, source, f.url));
+        let n = 0;
+        for (const x of list) {
+          if (!f.official && x.d && now - Date.parse(x.d) > 72 * HOUR) continue;
+          x.official = !!f.official; x.g = grams(x.t); pool.push(x); n++;
+        }
+        console.log(`✓ Tin giả · ${source}: ${n} tin quét (${f.url.replace(/^https:\/\/[^/]+/, '')})`);
+      } catch (e) { console.log(`✗ Tin giả · ${source}: ${e.message} (${f.url})`); }
+    }));
+    const found = new Map();
+    for (const x of pool) {
+      if (found.has(x.u)) continue;
+      if (!x.official && !(FAKE.test(x.t) && ACT.test(x.t + ' ' + x.sapo))) continue;
+      found.set(x.u, x);
+    }
+    // gộp với danh sách đang đăng (giữ cảnh báo tối đa 10 ngày), bỏ trùng sự việc
+    const KEEP = 10 * 24 * HOUR;
+    const oldItems = ((prev.fake || {}).items || []).filter((o) => o && o.u && now - Date.parse(o.d || o.seen || 0) < KEEP);
+    const items = [];
+    for (const o of oldItems) items.push({ ...o, g: grams(o.t) });
+    for (const x of found.values()) {
+      if (items.some((o) => o.u === x.u || sameStory(o, x))) continue;
+      items.push({ t: x.t, u: x.u, s: x.s, d: x.d, img: x.img, sapo: x.sapo, p: points(x.sapo), official: x.official, seen: new Date(now).toISOString(), g: x.g });
+    }
+    // bổ sung ngày đăng (nguồn VAFC không ghi ngày trong RSS), ảnh và ý chính từ thân bài cho tin mới
+    // ngày đăng: ưu tiên thẻ meta có cấu trúc; nếu phải đọc trong chữ thì chỉ nhận ngày trong 30 ngày gần đây
+    const okDate = (d) => Number.isFinite(d) && d <= now + HOUR && now - d < 30 * 24 * HOUR;
+    const pageDate = (html) => {
+      for (const re of [/property=["']article:published_time["'][^>]*content=["']([^"']+)/i, /content=["']([^"']+)["'][^>]*property=["']article:published_time/i, /itemprop=["']datePublished["'][^>]*(?:content|datetime)=["']([^"']+)/i, /"datePublished"\s*:\s*"([^"]+)"/i]) {
+        const m = html.match(re); if (m && okDate(Date.parse(m[1]))) return new Date(Date.parse(m[1])).toISOString();
+      }
+      const body = html.replace(/<(script|style|header|footer|nav)[\s>][\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ');
+      for (const v of body.matchAll(/(\d{1,2})\/(\d{1,2})\/(20\d\d)(?:\s*[-|,]?\s*(\d{1,2}):(\d{2}))?/g)) {
+        const d = Date.UTC(+v[3], +v[2] - 1, +v[1], (+v[4] || 0) - 7, +v[5] || 0);
+        if (okDate(d)) return new Date(d).toISOString();
+      }
+      return null;
+    };
+    const fresh = items.filter((o) => !o.x).slice(0, 25);
+    await Promise.all(fresh.map(async (o) => {
+      try {
+        const html = await get(o.u);
+        if (!o.d) o.d = pageDate(html);
+        if (!o.img) o.img = httpUrl(decode((html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i) || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image/i) || [])[1] || ''));
+        if (!o.sapo) { const og = html.match(/<meta[^>]+(?:property=["']og:description["']|name=["']description["'])[^>]+content=["']([^"']+)/i); if (og) { o.sapo = text(og[1]).slice(0, 600); o.p = points(o.sapo); } }
+        const extra = keySentences(html, o.t, o.p || [], 4);
+        o.p = [...(o.p || []).slice(0, 2), ...extra];
+        o.x = 1;
+      } catch (e) { console.log(`  ✗ không tải được cảnh báo: ${o.s} — ${e.message}`); }
+    }));
+    const ts = (o) => Date.parse(o.d || o.seen || 0) || 0;
+    const out = items.filter((o) => now - ts(o) < KEEP).sort((a, b) => ts(b) - ts(a)).slice(0, 18)
+      .map((o) => ({ t: o.t, u: o.u, s: o.s, d: o.d || null, seen: o.seen, img: o.img || '', p: (o.p || []).slice(0, 6), nums: numbers(o.t, (o.p || []).join(' ')), kind: o.kind || kindOf({ t: o.t, sapo: o.sapo || (o.p || []).join(' ') }), official: !!o.official, x: o.x || 0 }));
+    fake = { label: String(fakeCfg.label || 'Cảnh báo tin giả').slice(0, 40), items: out };
+    console.log(`  Cảnh báo tin giả: ${out.length} tin (${out.filter((o) => o.official).length} từ nguồn chính thức)\n` + out.map((o) => `   · [${o.kind}] ${o.t} — ${o.s}${o.d ? ' · ' + o.d.slice(0, 10) : ''}`).join('\n'));
+  }
+
+  fs.writeFileSync(OUT, JSON.stringify({ v: VERSION, updated: new Date().toISOString(), label: String(cfg.label || 'Tin nóng').slice(0, 30), categories, topics, fake }));
   console.log(`→ static/news.json: ${categories.map((c) => `${c.name} ${c.items.length}/${c.hot.length}`).join(', ')}; ${nTopics} gợi ý; ${Math.round(fs.statSync(OUT).size / 1024)} KB`);
 })().catch((e) => { console.log('Lỗi lấy tin: ' + (e.stack || e.message)); });

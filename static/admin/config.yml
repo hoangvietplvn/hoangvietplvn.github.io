@@ -172,3 +172,20 @@ collections:
                 fields:
                   - { name: source, label: Tên báo, widget: string }
                   - { name: url, label: Địa chỉ RSS, widget: string, hint: "Phải bắt đầu bằng https://" }
+          - name: fake
+            label: Mục Cảnh báo tin giả
+            widget: object
+            collapsed: true
+            fields:
+              - { name: enabled, label: Hiện mục Cảnh báo tin giả, widget: boolean, default: true, required: false }
+              - { name: label, label: Tên nút, widget: string, default: Cảnh báo tin giả }
+              - name: feeds
+                label: Nguồn quét
+                label_singular: nguồn
+                widget: list
+                summary: "{{source}}"
+                hint: Nguồn đánh dấu "chính thức" được lấy toàn bộ; các nguồn khác chỉ giữ bài nói về tin giả, thông tin sai sự thật, giả mạo có cơ quan chức năng lên tiếng.
+                fields:
+                  - { name: source, label: Tên nguồn, widget: string }
+                  - { name: url, label: Địa chỉ RSS hoặc trang chuyên mục, widget: string, hint: "Phải bắt đầu bằng https://" }
+                  - { name: official, label: Nguồn chính thức (lấy toàn bộ), widget: boolean, default: false, required: false }
