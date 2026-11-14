@@ -387,7 +387,7 @@ function original(phrase, title) {
     }
     // gộp với danh sách đang đăng (giữ cảnh báo tối đa 10 ngày), bỏ trùng sự việc
     const KEEP = 10 * 24 * HOUR;
-    const oldItems = ((prev.fake || {}).items || []).filter((o) => o && o.u && now - Date.parse(o.d || o.seen || 0) < KEEP);
+    const oldItems = ((prev.fake || {}).items || []).filter((o) => o && o.u && !(o.official && !o.d) && now - Date.parse(o.d || o.seen || 0) < KEEP);
     const items = [];
     for (const o of oldItems) items.push({ ...o, g: grams(o.t) });
     for (const x of found.values()) {
@@ -397,13 +397,17 @@ function original(phrase, title) {
     // bổ sung ngày đăng (nguồn VAFC không ghi ngày trong RSS), ảnh và ý chính từ thân bài cho tin mới
     // ngày đăng: ưu tiên thẻ meta có cấu trúc; nếu phải đọc trong chữ thì chỉ nhận ngày trong 30 ngày gần đây
     const okDate = (d) => Number.isFinite(d) && d <= now + HOUR && now - d < 30 * 24 * HOUR;
+    // ngày lấy từ thẻ có cấu trúc được nhận cả khi đã cũ (để loại tin cũ cho đúng)
+    const vnDate = (dd, mm, yy, hh, mi) => Date.UTC(+yy, +mm - 1, +dd, (+hh || 0) - 7, +mi || 0);
     const pageDate = (html) => {
+      const vafc = html.match(/class=["'][^"']*\bdate\b[^"']*["'][^>]*>\s*(\d{1,2})\/(\d{1,2})\/(20\d\d)\s*-\s*(\d{1,2}):(\d{2})/i);
+      if (vafc) return new Date(vnDate(vafc[1], vafc[2], vafc[3], vafc[4], vafc[5])).toISOString();
       for (const re of [/property=["']article:published_time["'][^>]*content=["']([^"']+)/i, /content=["']([^"']+)["'][^>]*property=["']article:published_time/i, /itemprop=["']datePublished["'][^>]*(?:content|datetime)=["']([^"']+)/i, /"datePublished"\s*:\s*"([^"]+)"/i]) {
-        const m = html.match(re); if (m && okDate(Date.parse(m[1]))) return new Date(Date.parse(m[1])).toISOString();
+        const m = html.match(re); if (m && Number.isFinite(Date.parse(m[1]))) return new Date(Date.parse(m[1])).toISOString();
       }
       const body = html.replace(/<(script|style|header|footer|nav)[\s>][\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ');
       for (const v of body.matchAll(/(\d{1,2})\/(\d{1,2})\/(20\d\d)(?:\s*[-|,]?\s*(\d{1,2}):(\d{2}))?/g)) {
-        const d = Date.UTC(+v[3], +v[2] - 1, +v[1], (+v[4] || 0) - 7, +v[5] || 0);
+        const d = vnDate(v[1], v[2], v[3], v[4], v[5]);
         if (okDate(d)) return new Date(d).toISOString();
       }
       return null;
@@ -421,7 +425,7 @@ function original(phrase, title) {
       } catch (e) { console.log(`  ✗ không tải được cảnh báo: ${o.s} — ${e.message}`); }
     }));
     const ts = (o) => Date.parse(o.d || o.seen || 0) || 0;
-    const out = items.filter((o) => now - ts(o) < KEEP).sort((a, b) => ts(b) - ts(a)).slice(0, 18)
+    const out = items.filter((o) => now - ts(o) < KEEP && !(o.official && !o.d)).sort((a, b) => ts(b) - ts(a)).slice(0, 18)
       .map((o) => ({ t: o.t, u: o.u, s: o.s, d: o.d || null, seen: o.seen, img: o.img || '', p: (o.p || []).slice(0, 6), nums: numbers(o.t, (o.p || []).join(' ')), kind: o.kind || kindOf({ t: o.t, sapo: o.sapo || (o.p || []).join(' ') }), official: !!o.official, x: o.x || 0 }));
     fake = { label: String(fakeCfg.label || 'Cảnh báo tin giả').slice(0, 40), items: out };
     console.log(`  Cảnh báo tin giả: ${out.length} tin (${out.filter((o) => o.official).length} từ nguồn chính thức)\n` + out.map((o) => `   · [${o.kind}] ${o.t} — ${o.s}${o.d ? ' · ' + o.d.slice(0, 10) : ''}`).join('\n'));
