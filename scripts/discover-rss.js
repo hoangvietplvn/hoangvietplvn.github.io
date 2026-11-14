@@ -1,11 +1,17 @@
-// Tạm thời: xem cách trang VAFC ghi ngày đăng
+// Tạm thời: xem các sơ đồ trang chuyên mục của VAFC, tin nào mới nhất
 const get = async (u) => (await fetch(u, { signal: AbortSignal.timeout(20000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rss-reader)' } })).text();
 (async () => {
-  for (const u of ['https://tingia.gov.vn/gia-mao-cac-cuoc-thi-trang-nguyen-tieng-viet-de-lua-dao.html', 'https://tingia.gov.vn/lan-truyen-cac-video-khong-ro-nguon-goc-de-gay-ton-hai-den-uy-tin-cua-suntory-pepsico-viet-nam.html']) {
-    const h = await get(u);
-    console.log('DISC == ' + u + ' ' + h.length);
-    for (const m of h.matchAll(/.{0,160}(\d{1,2}[\/-]\d{1,2}[\/-]20\d\d|20\d\d-\d\d-\d\d|published|datePublished|ngày đăng|cập nhật).{0,160}/gi)) console.log('DISC    ' + m[0].replace(/\s+/g, ' '));
+  const idx = await get('https://tingia.gov.vn/sitemap.xml');
+  const maps = [...idx.matchAll(/<loc>(https:\/\/tingia\.gov\.vn\/sitemap\/[^<]+)<\/loc>/g)].map((m) => m[1]);
+  for (const m of maps) {
+    try {
+      const x = await get(m);
+      const urls = [...x.matchAll(/<url>[\s\S]*?<\/url>/g)].map((u) => ({ loc: (u[0].match(/<loc>([^<]+)/) || [])[1], mod: (u[0].match(/<lastmod>([^<]+)/) || [])[1] }));
+      const sorted = urls.filter((u) => u.mod).sort((a, b) => b.mod.localeCompare(a.mod));
+      console.log(`DISC == ${m}: ${urls.length} url, mới nhất ${sorted[0] ? sorted[0].mod : '-'}`);
+      sorted.slice(0, 4).forEach((u) => console.log(`DISC    ${u.mod} ${u.loc}`));
+    } catch (e) { console.log('DISC lỗi ' + m + ' ' + e.message); }
   }
-  const sm = await get('https://tingia.gov.vn/sitemap.xml');
-  console.log('DISC == sitemap'); [...sm.matchAll(/<url>[\s\S]*?<\/url>/g)].slice(0, 12).forEach((m) => console.log('DISC    ' + m[0].replace(/\s+/g, ' ').slice(0, 220)));
+  const home = await get('https://tingia.gov.vn/');
+  console.log('DISC == trang chủ, các ngày xuất hiện: ' + [...new Set([...home.matchAll(/(\d{2}\/\d{2}\/20\d\d) - \d{2}:\d{2}/g)].map((m) => m[1]))].slice(0, 20).join(', '));
 })().catch((e) => console.log('DISC lỗi ' + e.message));
