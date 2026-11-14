@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 11; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 12; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -404,7 +404,8 @@ function original(phrase, title) {
   const PREFIX = /^(?:thực hư|vì sao|tại sao|toàn cảnh|cận cảnh|hé lộ|bất ngờ|nóng|video|clip|ảnh|infographic|chùm ảnh)\s*[:\-–]?\s*(?:việc\s+)?/iu;
   const PLACE = /^(Việt Nam|Hà Nội|TP\.?\s?HCM|TPHCM|TP Hồ Chí Minh|Mỹ|Trung Quốc|Nga|Nhật Bản|Hàn Quốc|Đà Nẵng|Hải Phòng|Cần Thơ|Quốc hội|Chính phủ|Bộ Chính trị|Liên hợp quốc)$/u;
   // cắt cụm danh từ dài: dừng ở giới từ gần nhất sau từ thứ 4, không cắt giữa chừng
-  const smartCut = (s, max = 10) => { const w = s.split(/\s+/); if (w.length <= max) return s; for (let i = Math.min(max, w.length - 1); i >= 4; i--) if (/^(của|tại|ở|trên|trong|với|cho|từ|sau|trước|về|do|và)$/u.test(w[i])) return w.slice(0, i).join(' '); return w.slice(0, max).join(' '); };
+  const BREAK = /^(của|tại|ở|trên|trong|với|cho|từ|sau|trước|về|do|và|cần|phải|muốn|đề nghị|yêu cầu|kêu gọi|tiếp tục|nhằm|để|vào|theo|khi)$/u;
+  const smartCut = (s, max = 10) => { const w = s.split(/\s+/).filter(Boolean); if (w.length <= max) return w.join(' '); for (let i = Math.min(max, w.length - 1); i >= 3; i--) if (BREAK.test(w[i])) return w.slice(0, i).join(' '); return ''; };
   function subjectOf(c, type) {
     const t0 = c.rep.t.replace(/^\[[^\]]+\]\s*/, '');
     const t = t0.replace(/^[\p{L}\s.]{2,25}:\s+/u, (m) => (/^(Thực hư|Vì sao|Tại sao|Toàn cảnh|Cận cảnh|Video|Clip|Ảnh|Nóng)/iu.test(m) ? '' : m)).replace(PREFIX, '');
@@ -430,8 +431,12 @@ function original(phrase, title) {
     const best = [...cnt].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
     if (best && best[1] >= 2 && (type === 'people' || type === 'general')) return best[0];
     if (type === 'crime') { const q = t.match(/[“"']([^”"']{3,40})[”"']/); if (q) return `vụ án liên quan “${q[1].trim()}”`; }
-    const head = tidy(smartCut(t.split(CUT)[0], 11));
-    return head.split(' ').length >= 3 ? head : tidy(smartCut(t, 11));
+    // loại chung: chỉ dùng khi cả vế đầu của tiêu đề đủ ngắn để đứng nguyên vẹn
+    const seg = t.split(CUT)[0].trim();
+    const n = seg.split(/\s+/).length;
+    if (type === 'general' || type === 'people') return n >= 3 && n <= 10 ? tidy(seg) : '';
+    const head = tidy(smartCut(seg, 10));
+    return head.split(' ').length >= 3 ? head : '';
   }
   const fill = (tpl, x) => {
     const lead = tpl.startsWith('{X}');
@@ -457,6 +462,7 @@ function original(phrase, title) {
         if (!c.hits.length && typeOf(c) === 'general') continue; // không có yếu tố lan truyền và không thuộc loại nào: bỏ qua
         taken.push(c);
         let type = typeOf(c); const X = subjectOf(c, type);
+        if (!X || X.split(' ').length < 2) continue; // không rút được chủ thể gọn: bỏ sự kiện này
         if (/^vụ\s/u.test(X) && (type === 'people' || type === 'general')) type = CRIME.test(c.text) ? 'crime' : 'incident';
         // xoay mẫu theo mốc giờ; tránh mẫu đã dùng ở mốc trước và trong cùng mục
         const bank = [...IDEAS[type], ...(type === 'general' ? [] : IDEAS.general)];
