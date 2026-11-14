@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 9; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 10; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -338,7 +338,7 @@ function original(phrase, title) {
       ['w6', 'Mạng xã hội thế giới đang nói gì về {X}?', 'Tổng hợp phản ứng', 'tổng hợp bình luận, ảnh chế quốc tế rất dễ viral'],
     ],
     tech: [
-      ['t1', 'Kiểm chứng {X}: có như lời đồn?', 'Video trải nghiệm', 'trải nghiệm thật có sức thuyết phục và lượt xem cao'],
+      ['t1', '{X}: kiểm chứng thực tế ra sao?', 'Video trải nghiệm', 'trải nghiệm thật có sức thuyết phục và lượt xem cao'],
       ['t2', '{X} có ảnh hưởng tới điện thoại, tài khoản của bạn?', 'Hướng dẫn tự kiểm tra', 'người dùng lo cho chính mình nên chủ động bấm xem'],
       ['t3', 'Giải thích {X} cho người không rành công nghệ', 'Explainer bằng hình', 'nhóm độc giả lớn nhất cần một bản dễ hiểu'],
       ['t4', 'Từ {X}: 5 việc cần làm ngay để bảo vệ dữ liệu của bạn', 'Checklist', 'checklist làm được ngay được lưu và chia sẻ nhiều'],
@@ -379,15 +379,17 @@ function original(phrase, title) {
   const DOC = /(?<![\p{L}])(luật|bộ luật|nghị định|nghị quyết|thông tư|dự thảo|đề xuất|quy định mới|chính sách)(?![\p{L}])/iu;
   // tin thủ tục, thông cáo, nhân sự: ít chất liệu để thành trend
   const TREND_SKIP = /thông cáo|kỳ họp thứ|phiên họp|cho thôi nhiệm vụ|bổ nhiệm|miễn nhiệm|phê chuẩn|bầu bổ sung|tiếp xúc cử tri|giao ban|sơ kết|tổng kết|hội nghị (triển khai|quán triệt)|ký kết hợp tác|trao quyết định/iu;
+  const repText = (c) => c.rep.t + '. ' + (c.rep.sapo || '').split(/(?<=[.!?])\s/)[0];
   const typeOf = (c) => {
+    const tx = repText(c);
     if (RUMOR.test(c.rep.t)) return 'rumor';
     if (c.cat === 'Khoa học Công nghệ') return 'tech';
-    if (CRIME.test(c.text)) return 'crime';
+    if (CRIME.test(tx)) return 'crime';
     if (DOC.test(c.rep.t)) return 'policy';
-    if (INCIDENT.test(c.text)) return 'incident';
+    if (INCIDENT.test(tx)) return 'incident';
     if (c.cat === 'Quốc tế') return 'world';
     if (c.cat === 'Khoa học Công nghệ' || DIGITAL.test(c.rep.t)) return 'tech';
-    if (POLICY.test(c.text) || PROJECT.test(c.text) || ENACTED.test(c.text)) return 'policy';
+    if (POLICY.test(tx) || PROJECT.test(tx) || ENACTED.test(tx)) return 'policy';
     if (SIGNALS[3][0].test(c.rep.t)) return 'people';
     return 'general';
   };
@@ -412,7 +414,7 @@ function original(phrase, title) {
       const m = t.match(/(?:tin đồn|tin giả|sai sự thật|bịa đặt|thất thiệt|xuyên tạc)\s+(?:về\s+)?(?:việc\s+)?([^:;?!…–—|(]{6,80})/iu);
       if (m) { const x = tidy(smartCut(m[1].split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'tin đồn ' + x; }
     }
-    const v = t.match(VU);
+    const v = [t, ...c.cl.map((x) => x.t).filter((x) => x !== c.rep.t)].map((x) => x.match(VU)).find(Boolean);
     if (v) { const x = tidy(smartCut(v[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 10)); if (x.split(' ').length >= 3) return low(x); }
     if (type === 'crime') { const m = t.match(CRIME_KEY); if (m) { const x = tidy(smartCut(t.slice(m.index).split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'vụ ' + low(x); } }
     if (type === 'incident') { const m = t.match(INC_KEY); if (m) { const x = low(tidy(smartCut(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0], 8))); if (x.split(' ').length >= 2) return /^(vụ|sự cố)\s/u.test(x) ? x : 'vụ ' + x; } }
@@ -421,20 +423,21 @@ function original(phrase, title) {
     // tên riêng nhiều chữ lặp lại trong các bài cùng sự kiện (bỏ tên địa danh, cơ quan chung chung)
     const cnt = new Map();
     for (const x of c.cl) for (const m of x.t.matchAll(/(?<![\p{L}])(\p{Lu}[\p{L}\d]*(?:\s+\p{Lu}[\p{L}\d]*){1,4})/gu)) {
-      const k = m[1]; if (PLACE.test(k) || /^(Tổng Bí thư|Chủ tịch|Thủ tướng|Bộ trưởng|Phó Thủ tướng|TP|UBND|Công an|Chủ tịch nước|Thông cáo)/u.test(k)) continue;
+      const k = m[1]; if (PLACE.test(k) || /^(Tổng Bí thư|Chủ tịch|Thủ tướng|Bộ trưởng|Phó Thủ tướng|TP|UBND|Công an|Chủ tịch nước|Thông cáo|Trường|Bệnh viện|Sở|Bộ|Ban|Cục|Viện|Công ty|Tập đoàn|Hội|Đoàn|Học viện|Ủy ban|Tòa án|Viện kiểm sát|Ngân hàng|Quỹ|Trung tâm|Phòng|Đại học)(\s|$)/u.test(k)) continue;
       if (!t.includes(k)) continue;
       cnt.set(k, (cnt.get(k) || 0) + 1);
     }
     const best = [...cnt].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
-    if (best && best[1] >= 2 && c.cat !== 'Quốc tế') return best[0];
+    if (best && best[1] >= 2 && (type === 'people' || type === 'general')) return best[0];
+    if (type === 'crime') { const q = t.match(/[“"']([^”"']{3,40})[”"']/); if (q) return `vụ án liên quan “${q[1].trim()}”`; }
     const head = tidy(smartCut(t.split(CUT)[0], 11));
     return head.split(' ').length >= 3 ? head : tidy(smartCut(t, 11));
   }
   const fill = (tpl, x) => {
     const lead = tpl.startsWith('{X}');
     const common = /^(Vụ|Tin|Dự|Đề|Chương|Chiến|Quy|Kế|Chính|Bắt|Khởi|Xử|Sập|Cháy|Nổ|Tai|Phê|Thông|Công|Người|Hàng|Nhiều|Các|Những|Một|Hơn|Gần|Phát|Tạm|Truy|Điều|Triệt|Cảnh|Đề|Lần|Mưa|Bão|Lũ|Sạt|Ngộ|Đường|Dòng|Giá|Học|Sinh)$/u;
-    const first = x.split(' ')[0];
-    const xx = lead ? x.charAt(0).toUpperCase() + x.slice(1) : (common.test(first) ? x.charAt(0).toLowerCase() + x.slice(1) : x);
+    const proper = /^(\p{Lu}[\p{L}\d]*\s+\p{Lu})|^[A-Z0-9]{2,}(?![\p{Ll}])|^(Mỹ|Nga|Trung Quốc|Việt Nam|Nhật Bản|Hàn Quốc|Anh|Pháp|Đức|Ấn Độ|Ukraine|Israel|Iran|Hà Nội|TPHCM|Microsoft|Google|Apple|Meta|Nvidia|Samsung|Facebook|TikTok|Luật|Bộ luật|Nghị định|Nghị quyết|Thông tư)(?![\p{L}])/u;
+    const xx = lead ? x.charAt(0).toUpperCase() + x.slice(1) : (proper.test(x) ? x : x.charAt(0).toLowerCase() + x.slice(1));
     return tpl.replace('{X}', xx);
   };
   const hash = (s) => { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
