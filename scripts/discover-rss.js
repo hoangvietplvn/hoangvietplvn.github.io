@@ -1,30 +1,19 @@
-// Tạm thời: dò nguồn cảnh báo tin giả chính thức
-const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(20000), redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rss-reader)' } }); return { status: r.status, url: r.url, type: (r.headers.get('content-type') || '').split(';')[0], body: await r.text() }; };
-const urls = [
-  'https://tingia.gov.vn/', 'https://tingia.gov.vn/rss', 'https://tingia.gov.vn/rss.html', 'https://tingia.gov.vn/feed', 'https://tingia.gov.vn/robots.txt', 'https://tingia.gov.vn/sitemap.xml',
-  'https://bocongan.gov.vn/', 'https://bocongan.gov.vn/rss', 'https://bocongan.gov.vn/robots.txt',
-  'https://mst.gov.vn/', 'https://mst.gov.vn/rss', 'https://mst.gov.vn/robots.txt',
-  'https://baochinhphu.vn/rss', 'https://nhandan.vn/rss.html', 'https://cand.vn/rss.html', 'https://baotintuc.vn/rss.html', 'https://vnexpress.net/rss', 'https://dantri.com.vn/rss.htm',
-];
+// Tạm thời: xem RSS Trung tâm Xử lý tin giả và các RSS của Bộ Công an
+const get = async (u) => { const r = await fetch(u, { signal: AbortSignal.timeout(20000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rss-reader)' } }); return { status: r.status, body: await r.text() }; };
+const items = (xml) => [...xml.matchAll(/<item[\s>][\s\S]*?<\/item>/gi)].map((m) => { const g = (n) => ((m[0].match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)</${n}>`, 'i')) || [])[1] || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return `${g('pubDate')} | ${g('title')} | ${g('link')} | ${g('description').slice(0, 160)}`; });
 (async () => {
-  for (const u of urls) {
-    try {
-      const r = await get(u);
-      const items = (r.body.match(/<item[\s>]/g) || []).length, arts = (r.body.match(/<article[\s>]/g) || []).length;
-      console.log(`DISC ${r.status} ${u} → ${r.url} [${r.type}] ${r.body.length} ký tự, item=${items} article=${arts}`);
-      if (/robots\.txt$/.test(u)) r.body.split('\n').filter((l) => /sitemap|rss/i.test(l)).slice(0, 8).forEach((l) => console.log('DISC    ' + l.trim()));
-      // liên kết RSS và liên kết có chữ tin giả / cảnh báo / sai sự thật
-      const seen = new Set();
-      for (const m of r.body.matchAll(/<a[^>]+href=["']([^"'#]+)["'][^>]*>([\s\S]{0,160}?)<\/a>/gi)) {
-        const t = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const href = m[1];
-        if (!(/\.rss|\/rss\/|feed/i.test(href) || /tin giả|tin-gia|sai sự thật|sai-su-that|cảnh báo|canh-bao|bác bỏ|xử lý tin|xu-ly-tin|phản bác|mạo danh|thông tin xấu|xau-doc|lừa đảo/i.test(href + ' ' + t))) continue;
-        let abs = href; try { abs = new URL(href, r.url).href; } catch (e) {}
-        if (seen.has(abs)) continue; seen.add(abs);
-        if (seen.size > 40) break;
-        console.log(`DISC    ${abs}  |  ${t.slice(0, 80)}`);
-      }
-      if (/tingia\.gov\.vn\/$/.test(u)) { const a = r.body.match(/<article[\s\S]{0,1200}/i); console.log('DISC    ARTICLE: ' + (a ? a[0].replace(/\s+/g, ' ').slice(0, 1200) : 'không có thẻ article')); console.log('DISC    HEAD: ' + r.body.replace(/\s+/g, ' ').slice(0, 600)); }
-    } catch (e) { console.log(`DISC lỗi ${u}: ${e.message}`); }
+  const t = await get('https://tingia.gov.vn/rss');
+  console.log('DISC == tingia rss ' + t.status); console.log('DISC ' + t.body.replace(/\s+/g, ' ').slice(0, 700));
+  items(t.body).forEach((x) => console.log('DISC    ' + x));
+  const sm = await get('https://tingia.gov.vn/sitemap.xml'); console.log('DISC == tingia sitemap: ' + sm.body.replace(/\s+/g, ' ').slice(0, 900));
+  const b = await get('https://bocongan.gov.vn/rss');
+  const feeds = [...new Set([...b.body.matchAll(/href=["']([^"']*api\/rss\/\d+\.xml)["'][^>]*>([\s\S]{0,80}?)</gi)].map((m) => m[1] + ' | ' + m[2].replace(/<[^>]+>/g, '').trim()))];
+  console.log('DISC == bocongan rss: ' + feeds.length); feeds.forEach((f) => console.log('DISC    ' + f));
+  for (const f of feeds.filter((f) => /cảnh báo|tin giả|sai sự thật|phòng|lừa|tội phạm|an ninh mạng|thông báo|tin tức/i.test(f)).slice(0, 6)) {
+    const u = new URL(f.split(' | ')[0], 'https://bocongan.gov.vn').href; const r = await get(u);
+    console.log('DISC == ' + f + ' → ' + r.status); items(r.body).slice(0, 6).forEach((x) => console.log('DISC    ' + x));
   }
-})();
+  const m = await get('https://mst.gov.vn/latest-news-sitemap.xml');
+  const locs = [...m.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((x) => x[1]);
+  console.log('DISC == mst latest: ' + locs.length + ' url; khớp tin giả: ' + locs.filter((l) => /tin-gia|sai-su-that|canh-bao|mao-danh|gia-mao/.test(l)).slice(0, 10).join(' '));
+})().catch((e) => console.log('DISC lỗi ' + e.message));
