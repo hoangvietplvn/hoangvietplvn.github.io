@@ -99,7 +99,10 @@ function grams(title) {
 }
 // cụm từ quá phổ biến: không được tính là dấu hiệu hai bài nói về cùng một sự việc
 const GENERIC = new Set(['việt nam', 'hà nội', 'tp hcm', 'thành phố', 'tổng thống', 'thủ tướng', 'bộ trưởng', 'công an', 'chủ tịch', 'tổng bí', 'bí thư', 'quốc hội', 'chính phủ', 'trung quốc', 'đà nẵng', 'thế giới', 'hồ chí', 'chí minh', 'khoa học', 'công nghệ', 'học công', 'pháp luật', 'xã hội', 'quốc tế', 'thời sự', 'người dân', 'hợp tác', 'phát triển', 'đại biểu', 'ủy ban', 'nhân dân', 'ban nhân', 'ubnd tỉnh', 'chuyển đổi', 'đổi số', 'doanh nghiệp', 'kinh tế', 'giao thông', 'quan hệ', 'đồng chí', 'lãnh đạo', 'triển khai', 'thực hiện', 'tổ chức', 'hội nghị', 'tăng cường', 'bảo đảm', 'đẩy mạnh']);
-const shared = (a, b) => { let n = 0; for (const x of a) if (b.has(x) && !GENERIC.has(x)) n++; return n; };
+// cụm chỉ gồm chức danh, cơ quan (phó chủ, tịch ubnd, bí thư tỉnh…) không phải dấu hiệu cùng sự việc
+const ROLE = new Set('chủ tịch phó ubnd ủy ban bí thư tỉnh thành phố bộ trưởng thứ tổng giám đốc cục sở tướng thủ quốc hội đại biểu nhân dân hđnd đảng ủy trung ương chính phủ lãnh đạo cán bộ viên huyện xã phường cơ quan'.split(' '));
+const roleOnly = (g) => g.split(' ').every((w) => ROLE.has(w));
+const shared = (a, b) => { let n = 0; for (const x of a) if (b.has(x) && !GENERIC.has(x) && !roleOnly(x)) n++; return n; };
 const sameStory = (a, b) => {
   const sb = shared(a.g.bi, b.g.bi);
   if (sb >= 2) return true;
@@ -265,7 +268,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 14; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 15; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -396,7 +399,7 @@ function original(phrase, title) {
   // chủ thể của sự kiện: cụm "vụ …", tên văn bản / dự án, tên riêng lặp lại, hoặc vế đầu của tiêu đề
   const CUT = /\s+(?:khiến|làm|gây|sau khi|trước khi|vì|do|bị|được|đã|đang|sẽ|cho thấy|là|có|tại sao|như thế nào|ra sao|nhằm|để)\s+|\s*(?:[:;?!…–—|(]|,\s|\.\s)\s*/u;
   const words = (s, n) => s.split(/\s+/).slice(0, n).join(' ');
-  const tidy = (s) => { let x = s.replace(/^[\s"“”'‘’]+|[\s,;:.–—-]+$/g, '').replace(/\s+(ở|tại|trong|với|và|của|cho|từ|sau|trước)$/u, '').trim(); if (/“/.test(x) && !/”/.test(x)) x += '”'; return x; };
+  const tidy = (s) => { let x = s.replace(/^[\s"“”'‘’]+|[\s,;:.–—-]+$/g, '').replace(/\s+(ở|tại|trong|với|đối|về|và|của|cho|từ|sau|trước|các|những)$/u, '').trim(); if (/“/.test(x) && !/”/.test(x)) x += '”'; return x; };
   const fromKey = (t, re, n) => { const m = t.match(re); if (!m) return ''; const x = tidy(words(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0].replace(/^\s+/, ''), n)); return x.charAt(0).toLowerCase() + x.slice(1); };
   const CRIME_KEY = /(?<![\p{L}])(lừa đảo|chiếm đoạt|tham ô|buôn lậu|hàng giả|cưỡng đoạt|ma túy|đánh bạc|sát hại|hối lộ|trộm|cướp|đường dây|tín dụng đen|rửa tiền|trốn thuế|mua bán hóa đơn)(?![\p{L}])/iu;
   const INC_KEY = /(?<![\p{L}])(vụ nổ|nổ|cháy|hỏa hoạn|sập|tai nạn|sạt lở|ngộ độc|lũ quét|lật xe|chìm tàu|đuối nước|rò rỉ|sự cố)(?![\p{L}])/iu;
@@ -404,7 +407,7 @@ function original(phrase, title) {
   const PREFIX = /^(?:thực hư|vì sao|tại sao|toàn cảnh|cận cảnh|hé lộ|bất ngờ|nóng|video|clip|ảnh|infographic|chùm ảnh)\s*[:\-–]?\s*(?:việc\s+)?/iu;
   const PLACE = /^(Việt Nam|Hà Nội|TP\.?\s?HCM|TPHCM|TP Hồ Chí Minh|Mỹ|Trung Quốc|Nga|Nhật Bản|Hàn Quốc|Đà Nẵng|Hải Phòng|Cần Thơ|Quốc hội|Chính phủ|Bộ Chính trị|Liên hợp quốc)$/u;
   // cắt cụm danh từ dài: dừng ở giới từ gần nhất sau từ thứ 4, không cắt giữa chừng
-  const BREAK = /^(của|tại|ở|trên|trong|với|cho|từ|sau|trước|về|do|và|cần|phải|muốn|đề nghị|yêu cầu|kêu gọi|tiếp tục|nhằm|để|vào|theo|khi)$/u;
+  const BREAK = /^(của|tại|ở|trên|trong|với|đối|cho|từ|sau|trước|về|do|và|cần|phải|muốn|đề nghị|yêu cầu|kêu gọi|tiếp tục|nhằm|để|vào|theo|khi)$/u;
   const smartCut = (s, max = 10) => { const w = s.split(/\s+/).filter(Boolean); if (w.length <= max) return w.join(' '); for (let i = Math.min(max, w.length - 1); i >= 3; i--) if (BREAK.test(w[i])) return w.slice(0, i).join(' '); return ''; };
   function subjectOf(c, type) {
     const t0 = c.rep.t.replace(/^\[[^\]]+\]\s*/, '');
