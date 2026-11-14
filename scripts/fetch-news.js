@@ -111,7 +111,7 @@ const sameStory = (a, b) => {
 function cluster(items) {
   const clusters = [];
   for (const it of items) {
-    const c = clusters.find((cl) => cl.some((x) => sameStory(x, it)));
+    const c = clusters.find((cl) => sameStory(cl[0], it) || (cl.length > 1 && sameStory(cl[1], it) && sameStory(cl[0], cl[1])));
     if (c) c.push(it); else clusters.push([it]);
   }
   return clusters;
@@ -265,7 +265,7 @@ function original(phrase, title) {
     const site = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8')).url.replace(/\/$/, '');
     prev = JSON.parse(await get(site + '/news.json?t=' + now));
   } catch (e) { console.log('  (không đọc được bản news.json đang đăng: ' + e.message + ')'); }
-  const VERSION = 8; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
+  const VERSION = 9; // tăng số này khi đổi cách tóm tắt/gợi ý, để bản đang đăng không bị dùng lại
   const done = new Map();
   if (prev.v === VERSION) for (const c of prev.categories || []) for (const h of c.hot || []) if (h && h.x && Array.isArray(h.p)) done.set(h.u, h);
   let fetched = 0, reused = 0, failed = 0;
@@ -309,7 +309,7 @@ function original(phrase, title) {
       ['i4', '60 giây tái hiện {X}', 'Video đồ hoạ ngắn', 'video ngắn tái hiện diễn biến hợp thuật toán TikTok, Reels'],
       ['i5', 'Gặp tình huống như {X}, làm gì trong 5 phút đầu?', 'Video hướng dẫn kỹ năng', 'kỹ năng thực dụng, người xem có lý do gửi cho người thân'],
       ['i6', '{X}: những người hùng thầm lặng', 'Chân dung ngắn', 'câu chuyện tích cực giữa tin buồn thường lan toả mạnh'],
-      ['i7', 'Bản đồ những vụ tương tự {X} từ đầu năm', 'Bản đồ tương tác', 'bức tranh toàn cảnh khiến người đọc bất ngờ về mức độ phổ biến'],
+      ['i7', 'Bản đồ những sự việc tương tự {X} từ đầu năm', 'Bản đồ tương tác', 'bức tranh toàn cảnh khiến người đọc bất ngờ về mức độ phổ biến'],
     ],
     crime: [
       ['c1', 'Giải mã thủ đoạn trong {X}: kịch bản được dựng thế nào?', 'Infographic từng bước', 'người đọc tò mò cách kẻ gian vận hành và chia sẻ để cảnh báo người thân'],
@@ -377,8 +377,11 @@ function original(phrase, title) {
   ];
   const RUMOR = W('tin đồn|tin giả|thông tin sai sự thật|sai sự thật|bịa đặt|thất thiệt|xuyên tạc|bác bỏ thông tin|không đúng sự thật');
   const DOC = /(?<![\p{L}])(luật|bộ luật|nghị định|nghị quyết|thông tư|dự thảo|đề xuất|quy định mới|chính sách)(?![\p{L}])/iu;
+  // tin thủ tục, thông cáo, nhân sự: ít chất liệu để thành trend
+  const TREND_SKIP = /thông cáo|kỳ họp thứ|phiên họp|cho thôi nhiệm vụ|bổ nhiệm|miễn nhiệm|phê chuẩn|bầu bổ sung|tiếp xúc cử tri|giao ban|sơ kết|tổng kết|hội nghị (triển khai|quán triệt)|ký kết hợp tác|trao quyết định/iu;
   const typeOf = (c) => {
     if (RUMOR.test(c.rep.t)) return 'rumor';
+    if (c.cat === 'Khoa học Công nghệ') return 'tech';
     if (CRIME.test(c.text)) return 'crime';
     if (DOC.test(c.rep.t)) return 'policy';
     if (INCIDENT.test(c.text)) return 'incident';
@@ -394,34 +397,38 @@ function original(phrase, title) {
   const tidy = (s) => { let x = s.replace(/^[\s"“”'‘’]+|[\s,;:.–—-]+$/g, '').replace(/\s+(ở|tại|trong|với|và|của|cho|từ|sau|trước)$/u, '').trim(); if (/“/.test(x) && !/”/.test(x)) x += '”'; return x; };
   const fromKey = (t, re, n) => { const m = t.match(re); if (!m) return ''; const x = tidy(words(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0].replace(/^\s+/, ''), n)); return x.charAt(0).toLowerCase() + x.slice(1); };
   const CRIME_KEY = /(?<![\p{L}])(lừa đảo|chiếm đoạt|tham ô|buôn lậu|hàng giả|cưỡng đoạt|ma túy|đánh bạc|sát hại|hối lộ|trộm|cướp|đường dây|tín dụng đen|rửa tiền|trốn thuế|mua bán hóa đơn)(?![\p{L}])/iu;
-  const INC_KEY = /(?<![\p{L}])(vụ nổ|nổ|cháy|hỏa hoạn|sập|tai nạn|sạt lở|ngộ độc|lũ quét|lật xe|chìm tàu|đuối nước|rò rỉ)(?![\p{L}])/iu;
+  const INC_KEY = /(?<![\p{L}])(vụ nổ|nổ|cháy|hỏa hoạn|sập|tai nạn|sạt lở|ngộ độc|lũ quét|lật xe|chìm tàu|đuối nước|rò rỉ|sự cố)(?![\p{L}])/iu;
+  const VU = /(?<![\p{L}])(?<!(?:nhiệm|nghiệp|dịch|phục|thời|nghĩa|chức|công|quân|tạp|phụ|thương|y|thuế|điều|hàng|nông|mùa|đặc|tác)\s)((?:vụ|Vụ)\s+[^:;?!…–—|(]{4,90})/u;
+  const PREFIX = /^(?:thực hư|vì sao|tại sao|toàn cảnh|cận cảnh|hé lộ|bất ngờ|nóng|video|clip|ảnh|infographic|chùm ảnh)\s*[:\-–]?\s*(?:việc\s+)?/iu;
+  const PLACE = /^(Việt Nam|Hà Nội|TP\.?\s?HCM|TPHCM|TP Hồ Chí Minh|Mỹ|Trung Quốc|Nga|Nhật Bản|Hàn Quốc|Đà Nẵng|Hải Phòng|Cần Thơ|Quốc hội|Chính phủ|Bộ Chính trị|Liên hợp quốc)$/u;
+  // cắt cụm danh từ dài: dừng ở giới từ gần nhất sau từ thứ 4, không cắt giữa chừng
+  const smartCut = (s, max = 10) => { const w = s.split(/\s+/); if (w.length <= max) return s; for (let i = Math.min(max, w.length - 1); i >= 4; i--) if (/^(của|tại|ở|trên|trong|với|cho|từ|sau|trước|về|do|và)$/u.test(w[i])) return w.slice(0, i).join(' '); return w.slice(0, max).join(' '); };
   function subjectOf(c, type) {
-    const titles = [c.rep.t, ...c.cl.map((x) => x.t).filter((t) => t !== c.rep.t)];
+    const t0 = c.rep.t.replace(/^\[[^\]]+\]\s*/, '');
+    const t = t0.replace(/^[\p{L}\s.]{2,25}:\s+/u, (m) => (/^(Thực hư|Vì sao|Tại sao|Toàn cảnh|Cận cảnh|Video|Clip|Ảnh|Nóng)/iu.test(m) ? '' : m)).replace(PREFIX, '');
+    const low = (x) => x.charAt(0).toLowerCase() + x.slice(1);
     if (type === 'rumor') {
-      for (const t of titles) { const q = t.match(/[“"]([^”"]{6,70})[”"]/); if (q) return `tin đồn “${q[1].trim()}”`; }
-      for (const t of titles) { const m = t.match(/(?:tin đồn|tin giả|sai sự thật|bịa đặt|thất thiệt|xuyên tạc)\s+(?:về\s+)?(?:việc\s+)?([^:;?!…–—|(]{6,80})/iu); if (m) { const x = tidy(words(m[1].split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'tin đồn ' + x; } }
+      const q = t.match(/[“"]([^”"]{6,70})[”"]/); if (q) return `tin đồn “${q[1].trim()}”`;
+      const m = t.match(/(?:tin đồn|tin giả|sai sự thật|bịa đặt|thất thiệt|xuyên tạc)\s+(?:về\s+)?(?:việc\s+)?([^:;?!…–—|(]{6,80})/iu);
+      if (m) { const x = tidy(smartCut(m[1].split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'tin đồn ' + x; }
     }
-    for (const t of titles) {
-      const m = t.match(/(?:^|\s)((?:vụ|Vụ) [^:;?!…–—|(]{4,90})/u);
-      if (m) { const x = tidy(words(m[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 9)); if (x.split(' ').length >= 3) return x; }
-    }
-    if (type === 'crime') { const x = fromKey(c.rep.t, CRIME_KEY, 7); if (x.split(' ').length >= 2) return 'vụ ' + x; }
-    if (type === 'incident') { const x = fromKey(c.rep.t, INC_KEY, 7); if (x.split(' ').length >= 2) return /^vụ\s/iu.test(x) ? x : 'vụ ' + x; }
-    for (const t of titles) {
-      const m = t.match(/(?<![\p{L}])((?:luật|bộ luật|nghị định|nghị quyết|thông tư|quy hoạch|đề án|dự án|chương trình|chiến dịch|hội nghị|đại hội|lễ hội|giải|chính sách|kế hoạch|dự thảo)(?:\s+[^\s:;?!…–—|(]+){1,8})/iu);
-      if (m) { const x = tidy(m[1].split(/\s+(?:khiến|làm|gây|được|đã|đang|sẽ|cho|tại|ở|từ|trong|nhằm|để|dài|với)\s+|,\s/u)[0]); if (x.split(' ').length >= 2) return x; }
-    }
-    // tên riêng (chuỗi chữ viết hoa) xuất hiện ở nhiều tiêu đề
+    const v = t.match(VU);
+    if (v) { const x = tidy(smartCut(v[1].split(/\s+(?:khiến|làm|gây|sau khi|khi|vì|do|đã|đang|bị)\s+|,\s/u)[0], 10)); if (x.split(' ').length >= 3) return low(x); }
+    if (type === 'crime') { const m = t.match(CRIME_KEY); if (m) { const x = tidy(smartCut(t.slice(m.index).split(CUT)[0], 8)); if (x.split(' ').length >= 2) return 'vụ ' + low(x); } }
+    if (type === 'incident') { const m = t.match(INC_KEY); if (m) { const x = low(tidy(smartCut(t.slice(m.index).split(CUT)[0].split(/\s+(?:sau|trước|khi)\s+/u)[0], 8))); if (x.split(' ').length >= 2) return /^(vụ|sự cố)\s/u.test(x) ? x : 'vụ ' + x; } }
+    const d = t.match(/(?<![\p{L}])((?:luật|bộ luật|nghị định|nghị quyết|thông tư|quy hoạch|đề án|dự án|chương trình|chiến dịch|hội nghị|đại hội|lễ hội|giải|chính sách|kế hoạch|dự thảo)(?:\s+[^\s:;?!…–—|(]+){1,8})/iu);
+    if (d) { const x = tidy(d[1].split(/\s+(?:khiến|làm|gây|được|đã|đang|sẽ|cho|tại|ở|từ|trong|nhằm|để|dài|với)\s+|,\s/u)[0]); if (x.split(' ').length >= 2) return x; }
+    // tên riêng nhiều chữ lặp lại trong các bài cùng sự kiện (bỏ tên địa danh, cơ quan chung chung)
     const cnt = new Map();
-    for (const t of titles) for (const m of t.matchAll(/(?<![\p{L}])(\p{Lu}[\p{L}\d]*(?:\s+\p{Lu}[\p{L}\d]*){1,4})/gu)) {
-      const k = m[1]; if (/^(Tổng Bí thư|Chủ tịch|Thủ tướng|Bộ trưởng|Phó Thủ tướng|Quốc hội|Chính phủ|TP|UBND|Công an|Chủ tịch nước)$/u.test(k)) continue;
+    for (const x of c.cl) for (const m of x.t.matchAll(/(?<![\p{L}])(\p{Lu}[\p{L}\d]*(?:\s+\p{Lu}[\p{L}\d]*){1,4})/gu)) {
+      const k = m[1]; if (PLACE.test(k) || /^(Tổng Bí thư|Chủ tịch|Thủ tướng|Bộ trưởng|Phó Thủ tướng|TP|UBND|Công an|Chủ tịch nước|Thông cáo)/u.test(k)) continue;
+      if (!t.includes(k)) continue;
       cnt.set(k, (cnt.get(k) || 0) + 1);
     }
     const best = [...cnt].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0];
-    if (best && best[1] >= 2) return best[0];
-    const first = c.rep.t.replace(/^\[[^\]]+\]\s*/, '').split(CUT)[0];
-    const head = tidy(words(first, first.split(/\s+/).length <= 11 ? 11 : 9));
-    return head.split(' ').length >= 3 ? head : tidy(words(c.rep.t, 11));
+    if (best && best[1] >= 2 && c.cat !== 'Quốc tế') return best[0];
+    const head = tidy(smartCut(t.split(CUT)[0], 11));
+    return head.split(' ').length >= 3 ? head : tidy(smartCut(t, 11));
   }
   const fill = (tpl, x) => {
     const lead = tpl.startsWith('{X}');
@@ -434,8 +441,8 @@ function original(phrase, title) {
   function suggest(slot, prevUsed) {
     const out = [], taken = [];
     for (const cat of categories) {
-      const pool = withText.filter((c) => c.cat === cat.name && !SKIP.test(c.rep.t)).map((c) => {
-        const hits = SIGNALS.filter(([re]) => re.test(c.text)).map(([, label]) => label);
+      const pool = withText.filter((c) => c.cat === cat.name && !SKIP.test(c.rep.t) && !TREND_SKIP.test(c.rep.t)).map((c) => {
+        const hits = SIGNALS.filter(([re]) => re.test(c.rep.t + '. ' + (c.rep.sapo || '').split(/(?<=[.!?])\s/)[0])).map(([, label]) => label);
         const newest = Math.min(...c.cl.map(age));
         const viral = c.sources.size * 2 + Math.min(c.cl.length, 8) * 0.4 + hits.length * 1.5 + (newest < 3 ? 1.5 : newest < 8 ? 0.7 : 0);
         return { ...c, hits, newest, viral };
