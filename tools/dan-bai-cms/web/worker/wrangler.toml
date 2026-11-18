@@ -1,0 +1,7 @@
+name = "dan-bai-proxy"
+main = "proxy.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://hoangvietplvn.github.io"
+# Đặt khóa bí mật bằng: npx wrangler secret put KEY

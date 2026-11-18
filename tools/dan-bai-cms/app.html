@@ -72,10 +72,10 @@
     </label>
     <label class="check"><input id="s-date" type="checkbox"> Tự đặt Ngày đăng là thời điểm hiện tại</label>
     <label class="check"><input id="s-cover" type="checkbox"> Tự tải ảnh đại diện của bài gốc rồi đẩy lên CMS</label>
-    <label class="check"><input id="s-submit" type="checkbox"> Tự bấm nút lưu sau khi điền <span class="hint">(cần chỉ định nút trước; chỉ bấm khi mọi ô đều điền được)</span></label>
-    <p class="hint" id="map-hint">Tiện ích tự dò các ô theo nhãn trên form «Tạo bài viết». Nếu ô nào dò sai, mở form đó trên CMS rồi bấm «Chỉ định» để chỉ đúng ô. Chỉ cần làm một lần.</p>
-    <table id="map-table"><tbody></tbody></table>
-    <p><button id="diag-btn" type="button">Sao chép thông tin chẩn đoán (PLQG)</button> <span id="diag-status" class="hint"></span></p>
+    <label class="check ext-only"><input id="s-submit" type="checkbox"> Tự bấm nút lưu sau khi điền <span class="hint">(cần chỉ định nút trước; chỉ bấm khi mọi ô đều điền được)</span></label>
+    <p class="hint ext-only" id="map-hint">Tiện ích tự dò các ô theo nhãn trên form «Tạo bài viết». Nếu ô nào dò sai, mở form đó trên CMS rồi bấm «Chỉ định» để chỉ đúng ô. Chỉ cần làm một lần.</p>
+    <table id="map-table" class="ext-only"><tbody></tbody></table>
+    <p class="ext-only"><button id="diag-btn" type="button">Sao chép thông tin chẩn đoán (PLQG)</button> <span id="diag-status" class="hint"></span></p>
 
     <h2>CMS Cổng thông tin điện tử Bộ Tư pháp (Moj)</h2>
     <label>Địa chỉ trang «Thêm mới tin bài» của CMS
@@ -83,9 +83,9 @@
     </label>
     <label class="check"><input id="s-moj-cover" type="checkbox"> Tự tải ảnh đại diện rồi đẩy lên kho ảnh của CMS</label>
     <label class="check"><input id="s-moj-save" type="checkbox"> Tự bấm «Lưu và ở lại trang» sau khi điền <span class="hint">(chỉ bấm khi mọi ô đều điền được; không bao giờ bấm «Gửi kiểm duyệt» hay «Công khai ngay»)</span></label>
-    <p><button id="moj-diag-btn" type="button">Sao chép thông tin chẩn đoán (Moj)</button> <span id="moj-diag-status" class="hint"></span></p>
+    <p class="ext-only"><button id="moj-diag-btn" type="button">Sao chép thông tin chẩn đoán (Moj)</button> <span id="moj-diag-status" class="hint"></span></p>
 
-    <p class="hint">Khi tiện ích điền sai: mở form soạn bài trên CMS tương ứng (với Moj, mở cả cửa sổ chọn ảnh nếu lỗi ở bước ảnh), bấm nút chẩn đoán rồi dán kết quả cho người hỗ trợ. Thông tin chỉ gồm cấu trúc trang, không kèm nội dung bài.</p>
+    <p class="hint ext-only">Khi tiện ích điền sai: mở form soạn bài trên CMS tương ứng (với Moj, mở cả cửa sổ chọn ảnh nếu lỗi ở bước ảnh), bấm nút chẩn đoán rồi dán kết quả cho người hỗ trợ. Thông tin chỉ gồm cấu trúc trang, không kèm nội dung bài.</p>
   </details>
 </main>
 <script src="shim.js"></script>

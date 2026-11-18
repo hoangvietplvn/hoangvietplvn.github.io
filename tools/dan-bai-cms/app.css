@@ -44,3 +44,14 @@ fieldset.group { margin: 14px 0 0; padding: 4px 12px 12px; border: 1px solid var
 fieldset.group legend { padding: 0 6px; font-weight: 600; font-size: 14px; }
 .actions button + button { margin-left: 8px; }
 details h2 { font-size: 15px; margin: 18px 0 4px; }
+
+/* Bản web */
+.ext-only { }
+html.web .ext-only { display: none; }
+html.web details { margin-top: 16px; }
+html.web summary { cursor: pointer; font-weight: 600; }
+.handoff { margin-top: 16px; padding: 12px 14px; border: 2px solid var(--accent); border-radius: 8px; background: var(--card); }
+.handoff h2 { margin: 0 0 4px; font-size: 16px; }
+.btn { display: inline-block; padding: 9px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); text-decoration: none; }
+.hint { font-weight: 400; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .row.actions { flex-wrap: wrap; } }

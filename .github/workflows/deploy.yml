@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Dựng bản web công cụ Dẫn bài (/dan-bai/)
+        run: node tools/build-web.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

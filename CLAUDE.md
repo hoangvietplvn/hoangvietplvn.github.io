@@ -13,6 +13,8 @@ Dán link bài báo hoặc Google Docs → bóc tách tiêu đề, sapo, nội d
 
 Hai bản chạy: tiện ích Chrome (`tools/dan-bai-cms`) và ứng dụng Android (`android/`, bốn tab Kéo bài / Kho ảnh / PLQG / Moj). Android dùng chung mã giao diện; `tools/dan-bai-cms/shim.js` thay các API `chrome.*` bằng cầu nối gốc (`NativeBridge.kt`, `MainActivity.kt`). Thư mục assets của APK được sao chép từ `tools/dan-bai-cms` khi build, không commit.
 
+**Bản web (GitHub Pages, `/dan-bai/`)**: dùng được trên iPhone/Mac/mọi trình duyệt. Dựng bởi `tools/build-web.js` (chạy trong `deploy.yml` sau `npm run build`, ra `dist/dan-bai/`, không commit). Dùng chung `app.js`/`extract.js`; `web-shim.js` thay `chrome.*` và bắt nút «Điền vào CMS …» thành «chuyển giao»: sao chép gói `DANBAI1\n{json}` vào bộ nhớ tạm. Dấu trang «Dán bài» chạy `runner.js` (= `cms-fill.js` + `moj-cms.js` + `web/runner.js`, đổi ký tự ngoài ASCII thành \\uXXXX) ngay trên trang CMS đã đăng nhập, đọc bộ nhớ tạm rồi điền. Mật khẩu CMS không rời trình duyệt của người dùng. Lấy bài từ link cần proxy `web/worker/proxy.js` (Cloudflare Worker); không có thì dùng ô «Dán nội dung». Chưa thử trên CMS thật; rủi ro chính: CMS chặn tải mã ngoài bằng CSP (khi đó cần nhúng mã trực tiếp vào dấu trang).
+
 Các file chính: `app.js` (giao diện + điều phối hai nút điền), `extract.js` (bóc tách bài, làm sạch HTML, gỡ link, căn giữa ảnh), `imgtools.js` (nén/tải ảnh).
 
 ## Quy ước người dùng đã chốt (không tự đổi)

@@ -356,6 +356,30 @@ async function getArticle(url) {
   throw err;
 }
 
+// Đưa bài đã bóc tách lên form để sửa (dùng cho cả link lẫn nội dung dán tay trên bản web).
+function showArticle(art) {
+  article = art;
+  // Ảnh mở đầu bài (nếu có) là ảnh đại diện cho cả hai CMS; chú thích của nó dùng cho CMS Moj.
+  // Nội dung ở đây giữ nguyên ảnh đó: PLQG để trong bài, Moj bỏ khỏi bài lúc điền.
+  let cover = article.cover || ''; let caption = '';
+  const lead = takeLead(article.html);
+  if (lead && lead.src && (!article.fromDoc || !cover || lead.src === cover)) { cover = lead.src; caption = lead.caption; }
+  $('f-title').value = article.title;
+  $('f-sapo').value = article.sapo;
+  $('f-site').value = article.site;
+  $('f-author').value = article.site ? 'Theo ' + article.site : article.author;
+  $('f-moj-author').value = article.author || '';
+  if (article.category) $('f-category').value = article.category;
+  $('f-cover').value = cover;
+  $('f-caption').value = caption;
+  $('f-body').innerHTML = article.html; // đã làm sạch trong extract.js
+  $('article').hidden = false;
+  const imgs = $('f-body').querySelectorAll('img').length;
+  setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh`
+    + (cover ? '' : ', chưa có ảnh đại diện') + '. Hãy đọc lại trước khi điền vào CMS.' + (article.notes ? ' ' + article.notes.join(' ') : ''), 'ok');
+}
+window.DanBaiShowArticle = showArticle;
+
 $('fetch-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const url = $('url').value.trim();
@@ -364,25 +388,7 @@ $('fetch-form').addEventListener('submit', async (e) => {
   setStatus($('status'), 'Đang lấy bài…');
   setStatus($('fill-status'), '');
   try {
-    article = await getArticle(url);
-    // Ảnh mở đầu bài (nếu có) là ảnh đại diện cho cả hai CMS; chú thích của nó dùng cho CMS Moj.
-    // Nội dung ở đây giữ nguyên ảnh đó: PLQG để trong bài, Moj bỏ khỏi bài lúc điền.
-    let cover = article.cover || ''; let caption = '';
-    const lead = takeLead(article.html);
-    if (lead && lead.src && (!article.fromDoc || !cover || lead.src === cover)) { cover = lead.src; caption = lead.caption; }
-    $('f-title').value = article.title;
-    $('f-sapo').value = article.sapo;
-    $('f-site').value = article.site;
-    $('f-author').value = article.site ? 'Theo ' + article.site : article.author;
-    $('f-moj-author').value = article.author || '';
-    if (article.category) $('f-category').value = article.category;
-    $('f-cover').value = cover;
-    $('f-caption').value = caption;
-    $('f-body').innerHTML = article.html; // đã làm sạch trong extract.js
-    $('article').hidden = false;
-    const imgs = $('f-body').querySelectorAll('img').length;
-    setStatus($('status'), `Đã lấy bài: khoảng ${article.length.toLocaleString('vi-VN')} ký tự, ${imgs} ảnh`
-      + (cover ? '' : ', chưa có ảnh đại diện') + '. Hãy đọc lại trước khi điền vào CMS.' + (article.notes ? ' ' + article.notes.join(' ') : ''), 'ok');
+    showArticle(await getArticle(url));
     if (article.fromDoc && window.DanBaiStore) await storeArticleImages();
   } catch (err) {
     $('article').hidden = true;
@@ -483,6 +489,10 @@ $('fill-plq').addEventListener('click', async () => {
           catch (e) { coverNote = ' Ảnh đại diện chưa đẩy lên được (' + e.message + ').'; }
         }
       }
+    }
+    if (window.DanBaiWeb) { // Bản web: chuyển bài sang dấu trang chạy trên trang CMS (không điều khiển được tab khác).
+      await window.DanBaiWeb.handoff('plq', { data, opts: { autoSubmit: false, setDate: settings.setDate, importCover: settings.importCover }, notes: (coverNote + imageNote).trim() }, st);
+      return;
     }
     const { tab, opened } = await getPlqTab();
     if (await atLogin(tab)) {
@@ -588,6 +598,10 @@ $('fill-moj').addEventListener('click', async () => {
       } catch (e) { notes.push('Ảnh đại diện: không tải được từ bài gốc (' + e.message + ').'); }
     }
 
+    if (window.DanBaiWeb) {
+      await window.DanBaiWeb.handoff('moj', { data, coverFile, opts: { autoSave: settings.mojAutoSave }, notes: notes.join(' ') }, st);
+      return;
+    }
     setStatus(st, 'Đang điền vào CMS Moj…');
     const { tab, opened } = await getMojTab();
     if (await atLogin(tab)) {
