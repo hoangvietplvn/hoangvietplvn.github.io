@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Nhạc Lossless</string>
+    <string name="only_lossless">Chỉ lossless (FLAC/WAV/ALAC)</string>
+    <string name="empty">Không tìm thấy bài nào. Hãy chép file nhạc vào bộ nhớ máy rồi mở lại app.</string>
+    <string name="need_permission">Cần quyền truy cập nhạc để liệt kê bài hát. Hãy cấp quyền trong Cài đặt.</string>
+    <string name="not_playing">Chưa phát bài nào</string>
+</resources>
