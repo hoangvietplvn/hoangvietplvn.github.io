@@ -143,7 +143,7 @@ function shell({ title, description, root, body, cls = '', image = '', canonical
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-${cls.split(' ').includes('home') ? '<meta name="theme-color" content="#0b3360">' : ''}
+${cls.split(' ').includes('home') ? '<meta name="theme-color" content="#f6f5f2">' : ''}
 <title>${esc(full)}</title>
 <meta name="description" content="${esc(description || cfg.description)}">
 <meta property="og:title" content="${esc(title || cfg.title)}">
@@ -219,7 +219,7 @@ write('assets/news.js', fs.readFileSync(path.join(ROOT, 'src/news.js')));
     if (fs.existsSync(path.join(cms, 'chunks'))) walk(path.join(cms, 'chunks'), 'chunks');
   }
 }
-write('assets/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#145091"/><stop offset="1" stop-color="#0a2d55"/></linearGradient></defs><rect width="64" height="64" rx="10" fill="url(#g)"/><text x="32" y="46" font-family="Georgia,serif" font-size="40" font-weight="700" text-anchor="middle" fill="#e2c584">${esc(cfg.title.trim()[0] || 'B')}</text></svg>`);
+write('assets/favicon.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#a61b1b"/><text x="32" y="46" font-family="system-ui,Segoe UI,Roboto,sans-serif" font-size="38" font-weight="700" text-anchor="middle" fill="#fff">${esc(cfg.title.trim()[0] || 'B')}</text></svg>`);
 for (const p of posts) if (!p.cover) write(`assets/covers/${p.slug}.svg`, coverSvg(p.slug));
 
 // Trang nhất

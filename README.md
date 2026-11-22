@@ -81,3 +81,5 @@ Cứ 15 phút, GitHub Actions chạy `scripts/fetch-news.js` để lấy tiêu �
 Nguồn tin hiện gồm Nhân Dân, Báo Tin tức, Báo Chính phủ, CAND, Pháp luật Việt Nam, Dân Trí, VnExpress. Báo nào không có RSS (Pháp luật Việt Nam) thì khai địa chỉ trang chuyên mục; bộ lấy tin tự đọc các thẻ `<article>` trên trang đó. Tắt/bật phần blog trên trang nhất: mục **Trang nhất** trong trang quản trị (`show_blog` trong `homepage.json`).
 
 Cụm "Ý tưởng đề tài có thể thành trend": mỗi mục chọn tối đa 2 sự kiện đang lên có yếu tố dễ lan truyền (túi tiền, an toàn, bất ngờ, nhân vật nổi tiếng, người trẻ, mạng xã hội). Với mỗi sự kiện, máy rút chủ thể và bung 3 đề tài từ kho mẫu theo loại sự kiện (sự cố, vụ án, chính sách, quốc tế, công nghệ, tin đồn, nhân vật). Kho mẫu nằm trong `scripts/fetch-news.js` (hằng `IDEAS`); đổi lúc 12:00 và 21:00.
+
+Giao diện trang nhất đồng nhất với công cụ «Dẫn bài vào CMS» (`tools/dan-bai-cms/app.css`): nền giấy `#f6f5f2`, ô trắng viền `#d5d5d5` bo 6px, mực `#1c1c1c`, nhấn đỏ `#a61b1b`, chữ hệ thống (system-ui), văn bản bài bằng Georgia, không đổ bóng. Khối CSS nằm cuối `src/styles.css` (phần "TRANG NHẤT").
