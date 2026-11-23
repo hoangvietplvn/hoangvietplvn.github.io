@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hoàng Việt – Công cụ dán bài CMS</title>
+<meta name="description" content="Công cụ dán bài vào CMS PLQG, Moj, Báo PLVN chỉ với vài cú bấm. Bản cho Windows và MacBook.">
+<style>
+:root{--bg:#0b1020;--bg2:#121a33;--card:#161f3b;--ink:#eef2ff;--mut:#9fb0d6;--acc:#ff4d63;--acc2:#4d8dff;--ok:#2ecc8f;--line:#26325a}
+@media(prefers-color-scheme:light){:root{--bg:#f4f6fc;--bg2:#e9eefb;--card:#fff;--ink:#10193a;--mut:#56638a;--line:#d9e0f2;--acc:#d6112f;--acc2:#1f5fe0}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.w{max-width:1040px;margin:0 auto;padding:0 16px}
+nav{position:sticky;top:0;z-index:5;backdrop-filter:blur(10px);background:color-mix(in srgb,var(--bg) 80%,transparent);border-bottom:1px solid var(--line)}
+nav .w{display:flex;align-items:center;justify-content:space-between;height:56px}
+nav b{font-size:1.05rem}nav b i{color:var(--acc);font-style:normal}
+nav a.b{padding:8px 16px;font-size:.9rem}
+.btn,.b{display:inline-block;padding:13px 26px;border-radius:12px;background:linear-gradient(135deg,var(--acc),#ff8a4d);color:#fff;text-decoration:none;font-weight:700;border:0;cursor:pointer;font-size:1rem;box-shadow:0 8px 24px -8px var(--acc)}
+.btn.alt{background:linear-gradient(135deg,var(--acc2),#7c5cff);box-shadow:0 8px 24px -8px var(--acc2)}
+.btn:hover{transform:translateY(-2px)}
+header{text-align:center;padding:84px 0 56px;background:radial-gradient(900px 400px at 50% -10%,color-mix(in srgb,var(--acc2) 35%,transparent),transparent)}
+.tag{display:inline-block;padding:4px 14px;border:1px solid var(--line);border-radius:99px;color:var(--mut);font-size:.85rem;margin-bottom:18px}
+h1{font-size:clamp(2.2rem,7vw,3.8rem);margin:0 0 16px;line-height:1.1;letter-spacing:-.02em}
+h1 span{background:linear-gradient(90deg,var(--acc),#ffb04d);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);max-width:640px;margin:0 auto 30px;font-size:1.12rem}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+h2{text-align:center;font-size:clamp(1.5rem,4vw,2rem);margin:72px 0 8px}
+.lead{text-align:center;color:var(--mut);margin:0 0 32px}
+.feat{display:grid;grid-template-columns:1fr 1.15fr;gap:28px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;margin-bottom:20px}
+.feat:nth-of-type(even) .txt{order:2}
+.feat h3{margin:0 0 8px;font-size:1.3rem}
+.feat p{color:var(--mut);margin:0 0 16px}
+.feat .num{color:var(--acc);font-weight:800;font-size:.85rem;letter-spacing:.1em}
+.run{padding:8px 16px;border-radius:10px;border:1px solid var(--acc2);background:transparent;color:var(--acc2);cursor:pointer;font-weight:600}
+.run:hover{background:var(--acc2);color:#fff}
+.sim{background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:.88rem;min-height:210px}
+.bar{display:flex;gap:6px;align-items:center;padding:8px 12px;background:color-mix(in srgb,var(--bg) 60%,var(--bg2));border-bottom:1px solid var(--line);color:var(--mut);font-size:.75rem}
+.bar i{width:10px;height:10px;border-radius:50%;background:#ff5f57}.bar i+i{background:#febc2e}.bar i+i+i{background:#28c840}
+.bar span{margin-left:8px}
+.body{padding:14px}
+.fld{display:block;margin-bottom:8px}
+.fld small{color:var(--mut);display:block;font-size:.72rem}
+.fld div{min-height:30px;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);white-space:pre-wrap}
+.fld div.on{border-color:var(--ok);box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 25%,transparent)}
+.ok{color:var(--ok);font-weight:700}
+.prog{height:10px;border-radius:9px;background:var(--bg);overflow:hidden;border:1px solid var(--line)}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc2),var(--ok));transition:width .15s}
+.phone{width:112px;height:200px;margin:0 auto;border-radius:14px;border:2px solid var(--line);background:#000;position:relative;overflow:hidden}
+.phone .bg{position:absolute;inset:0;background:linear-gradient(160deg,#233a8a,#0a1230)}
+.phone .vid{position:absolute;left:0;right:0;top:34px;height:62px;background:linear-gradient(90deg,#c8102e,#ff8a4d);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;transform:scaleY(.3);opacity:0;transition:.6s}
+.phone.go .vid{transform:none;opacity:1}
+.phone .ttl{position:absolute;left:8px;right:8px;top:108px;color:#fff;font-weight:700;font-size:.62rem;line-height:1.3;opacity:0;transition:.6s .5s}
+.phone.go .ttl{opacity:1}
+.phone .src{position:absolute;left:8px;bottom:10px;color:#ffb04d;font-size:.5rem;opacity:0;transition:.6s 1s}
+.phone.go .src{opacity:1}
+.wave{display:flex;gap:3px;align-items:center;height:56px;margin-bottom:10px}
+.wave i{flex:1;background:var(--acc2);border-radius:3px;height:8px;transition:height .12s}
+.tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.tabs span{padding:4px 12px;border-radius:8px 8px 0 0;background:var(--bg);border:1px solid var(--line);font-size:.78rem;cursor:pointer}
+.tabs span.on{background:var(--acc2);color:#fff;border-color:var(--acc2)}
+.ptr{height:34px;border-bottom:1px solid var(--line)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.stat div{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.stat b{display:block;font-size:1.4rem;color:var(--acc2)}
+.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.dl .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px;text-align:center}
+.dl .ic{font-size:3rem}
+.dl h3{margin:8px 0 2px}.dl p{color:var(--mut);margin:0 0 16px;font-size:.92rem}
+.note{max-width:720px;margin:20px auto 0;color:var(--mut);font-size:.88rem;text-align:center}
+.note code{background:var(--bg2);padding:1px 6px;border-radius:5px}
+footer{text-align:center;color:var(--mut);padding:56px 0 40px;font-size:.88rem}
+@media(max-width:760px){.feat{grid-template-columns:1fr}.feat:nth-of-type(even) .txt{order:0}}
+</style>
+</head>
+<body>
+<nav><div class="w"><b>Hoàng <i>Việt</i></b><a class="b" href="#tai">Tải về</a></div></nav>
+
+<header class="w">
+  <span class="tag">PLQG · Moj · Báo PLVN</span>
+  <h1>Dán bài vào CMS<br><span>chỉ với vài cú bấm</span></h1>
+  <p class="sub">Lấy bài từ báo, Google Docs hay Word rồi dán thẳng vào CMS — đủ tiêu đề, ảnh, chú thích, video. Không còn copy từng ô bằng tay.</p>
+  <div class="cta"><a class="btn" href="#tai">⬇ Tải về</a><a class="btn alt" href="#tinhnang">Xem thử tính năng</a></div>
+</header>
+
+<main class="w">
+  <h2 id="tinhnang">Dùng thử ngay trên trang</h2>
+  <p class="lead">Bấm “Chạy thử” ở từng tính năng để xem mô phỏng.</p>
+
+  <section class="feat"><div class="txt"><span class="num">01</span><h3>📋 Dán bài 1 chạm</h3><p>Điền tự động tiêu đề, sapo, nội dung, ảnh đại diện và chú thích vào cả 3 CMS.</p><button class="run" data-sim="paste">▶ Chạy thử</button></div>
+    <div class="sim"><div class="bar"><i></i><i></i><i></i><span>CMS · Thêm bài mới</span></div><div class="body" id="paste">
+      <label class="fld"><small>Tiêu đề</small><div></div></label>
+      <label class="fld"><small>Sapo</small><div></div></label>
+      <label class="fld"><small>Nội dung</small><div></div></label>
+      <div class="ok" style="min-height:22px"></div></div></div></section>
+
+  <section class="feat"><div class="txt"><span class="num">02</span><h3>🎬 Dán bài video</h3><p>Tải video từ link, đưa đúng vào ô Multimedia của từng CMS.</p><button class="run" data-sim="video">▶ Chạy thử</button></div>
+    <div class="sim"><div class="bar"><i></i><i></i><i></i><span>Tải video</span></div><div class="body" id="video">
+      <label class="fld"><small>Link bài / video</small><div>https://baophapluat.vn/…/video.html</div></label>
+      <div class="prog"><i></i></div><p style="margin:8px 0 0;color:var(--mut)" class="st">Chờ…</p></div></div></section>
+
+  <section class="feat"><div class="txt"><span class="num">03</span><h3>📱 Video dọc TikTok</h3><p>Lồng video ngang vào khung dọc, thêm tiêu đề, dòng nguồn và nhạc nền.</p><button class="run" data-sim="tiktok">▶ Chạy thử</button></div>
+    <div class="sim"><div class="body" id="tiktok" style="padding:20px"><div class="phone"><div class="bg"></div><div class="vid">▶</div><div class="ttl">TRIỂN KHAI LUẬT MỚI TỪ NGÀY 1/1</div><div class="src">Nguồn: Báo PLVN</div></div></div></div></section>
+
+  <section class="feat"><div class="txt"><span class="num">04</span><h3>🎙️ Ghi âm &amp; bóc băng</h3><p>Ghi âm cuộc phỏng vấn, AI chuyển thành văn bản.</p><button class="run" data-sim="rec">▶ Chạy thử</button></div>
+    <div class="sim"><div class="bar"><i></i><i></i><i></i><span>Ghi âm</span></div><div class="body" id="rec">
+      <div class="wave"></div><div class="fld"><small>Văn bản bóc băng</small><div style="min-height:50px"></div></div></div></div></section>
+
+  <section class="feat"><div class="txt"><span class="num">05</span><h3>📄 Biên tập &amp; tài liệu</h3><p>Soạn như Word/Excel. Thả file .docx vào là dùng được.</p><button class="run" data-sim="doc">▶ Chạy thử</button></div>
+    <div class="sim"><div class="bar"><i></i><i></i><i></i><span>Biên tập</span></div><div class="body" id="doc">
+      <div style="border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--mut)" class="drop">📎 Thả file bai-viet.docx vào đây</div>
+      <div class="fld" style="margin-top:10px"><div style="min-height:60px"></div></div></div></div></section>
+
+  <section class="feat"><div class="txt"><span class="num">06</span><h3>🔐 Trình duyệt tích hợp</h3><p>Nhiều tab, kho mật khẩu mã hóa, chặn quảng cáo, gợi ý địa chỉ.</p><button class="run" data-sim="web">▶ Chạy thử</button></div>
+    <div class="sim"><div class="body" id="web"><div class="tabs"><span class="on">PLQG</span><span>Moj</span><span>PLVN</span></div>
+      <div class="ptr fld" style="margin:0 0 8px"><div>https://</div></div>
+      <div class="stat"><div><b>0</b>quảng cáo chặn</div><div><b>3</b>mật khẩu lưu</div><div><b>3</b>CMS</div></div>
+      <div style="color:var(--mut)" class="st">Bấm “Chạy thử”.</div></div></div></section>
+
+  <h2 id="tai">Tải về</h2>
+  <p class="lead">Chọn bản phù hợp với máy của bạn</p>
+  <div class="dl">
+    <div class="card"><div class="ic">🪟</div><h3>Windows (PC)</h3><p>Windows 10/11 · 64-bit · chạy file cài đặt</p>
+      <a class="btn" href="https://github.com/hoangvietplvn/hoangvietplvn.github.io/releases/latest/download/HoangViet-Setup-windows.exe">⬇ Tải bản PC</a></div>
+    <div class="card"><div class="ic">🍎</div><h3>MacBook</h3><p>macOS · gói mã nguồn, cài bằng 1 lệnh</p>
+      <a class="btn alt" href="https://github.com/hoangvietplvn/hoangvietplvn.github.io/releases/latest/download/HoangViet-mac-source.zip">⬇ Tải bản MacBook</a></div>
+    <div class="card"><div class="ic">🤖</div><h3>Android</h3><p>Điện thoại Android · cài file APK</p>
+      <a class="btn alt" href="https://github.com/hoangvietplvn/hoangvietplvn.github.io/releases/latest/download/HoangViet-android.apk">⬇ Tải bản Android</a></div>
+  </div>
+  <p class="note">Windows: chạy file cài đặt; nếu Windows báo “không nhận ra ứng dụng”, bấm “Thông tin thêm” → “Vẫn chạy”. Mac: giải nén, mở Terminal trong thư mục <code>dan-bai-desktop</code> và chạy <code>bash build-mac.sh</code> — cần cài Node.js trước; lần đầu mở app, bấm chuột phải → Mở. Android: cho phép cài từ nguồn ngoài khi được hỏi.</p>
+  <p class="note">Sau khi cài, vào <b>Cài đặt → Đồng bộ nhiều thiết bị</b> để đăng nhập; tạo tài khoản mới cần mã mời của quản trị viên. Ứng dụng tự cập nhật giao diện khi có bản mới.</p>
+</main>
+<footer>© Hoàng Việt — Công cụ dán bài CMS</footer>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function type(el,t,ms=18){el.textContent="";el.classList.add("on");for(const c of t){el.textContent+=c;await sleep(ms)}el.classList.remove("on")}
+const busy={};
+const sims={
+ async paste(r){const f=$$(".fld div",r),ok=$(".ok",r);f.forEach(x=>x.textContent="");ok.textContent="";
+  await type(f[0],"Luật mới có hiệu lực từ 1/1/2027");await type(f[1],"Nhiều quy định đáng chú ý đối với người dân và doanh nghiệp.");
+  await type(f[2],"Theo quy định mới, người dân được hỗ trợ tra cứu trực tuyến…",10);ok.textContent="✓ Đã dán vào PLQG, Moj, PLVN"},
+ async video(r){const p=$(".prog i",r),s=$(".st",r);p.style.width="0";s.textContent="Đang tải video…";
+  for(let i=0;i<=100;i+=4){p.style.width=i+"%";await sleep(40)}s.innerHTML='<span class="ok">✓ Đã đưa vào ô Multimedia</span>'},
+ async tiktok(r){const p=$(".phone",r);p.classList.remove("go");await sleep(300);p.classList.add("go")},
+ async rec(r){const w=$(".wave",r);w.innerHTML="<i></i>".repeat(28);const b=$$("i",w),o=$(".fld div",r);o.textContent="";
+  for(let k=0;k<25;k++){b.forEach(x=>x.style.height=8+Math.random()*48+"px");await sleep(100)}
+  b.forEach(x=>x.style.height="8px");await type(o,"Phóng viên: Anh đánh giá thế nào về quy định mới?\nNgười được hỏi: Tôi cho rằng…",14)},
+ async doc(r){const d=$(".drop",r),o=$(".fld div",r);o.textContent="";d.textContent="📎 bai-viet.docx …";await sleep(700);d.innerHTML='<span class="ok">✓ Đã đọc bai-viet.docx</span>';
+  await type(o,"Tiêu đề: Luật mới có hiệu lực\nNội dung bài đã được đưa vào trình soạn, sẵn sàng dán CMS.",14)},
+ async web(r){const t=$$(".tabs span",r),u=$(".ptr div",r),s=$$(".stat b",r),m=$(".st",r);
+  for(const [i,url] of [[0,"https://plqg.vn/quan-tri"],[1,"https://moj.gov.vn/admin"],[2,"https://baophapluat.vn/cms"]]){
+   t.forEach((x,j)=>x.classList.toggle("on",j==i));await type(u,url,14);m.textContent="🔑 Gợi ý mật khẩu đã lưu · 🛡 chặn quảng cáo";s[0].textContent=(+s[0].textContent)+(4+i*3);await sleep(500)}
+  m.innerHTML='<span class="ok">✓ Đăng nhập tự động</span>'}
+};
+$$(".run").forEach(b=>b.onclick=async()=>{const k=b.dataset.sim;if(busy[k])return;busy[k]=1;b.disabled=true;try{await sims[k]($("#"+k))}finally{busy[k]=0;b.disabled=false}});
+</script>
+</body>
+</html>
